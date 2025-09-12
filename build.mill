@@ -1,0 +1,15 @@
+//| mill-version: 1.0.4
+package build
+import mill.*, scalalib.*
+import mill.api.Task.Simple
+
+object yang4s extends ScalaModule {
+  def scalaVersion = "3.7.1"
+
+  def mvnDeps = Seq(
+    mvn"org.typelevel::cats-core:2.13.0",
+    mvn"org.typelevel::cats-parse:1.0.0",
+  )
+
+  def scalacOptions = Seq("-deprecation", "-Xkind-projector:underscores")
+}
