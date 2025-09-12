@@ -3,29 +3,52 @@ package yang4s.schema
 import yang4s.parser.Statement
 
 import yang4s.schema.{Keyword => Kw}
+import cats.data.State
+import cats.data.StateT
+import cats.data.EitherT
+import cats.implicits.{*, given}
+import cats.parse.Parser
+import cats.Applicative
 
+case class ParsingCtx(namespace: String)
 
 object parsers {
-  type ParserResult[A] = Either[String, A]
+  type ErrorOr[A] = Either[String, A]
+  type ParserResult[A] = StateT[ErrorOr, ParsingCtx, A]
+
+  object ParserResult {
+    def lift[A](v: ErrorOr[A]): ParserResult[A] = StateT.liftF(v)
+    def modify = StateT.modify[ErrorOr, ParsingCtx]
+  }
 
   def moduleParser: PartialFunction[Statement, ParserResult[Module]] = {
     case stmt @ Statement(None, Keyword.Module.literal, Some(arg), children) => {
-      val moduleResult = for {
-        v <- Grammar.validate(stmt)
+      for {
+        v <- ParserResult.lift(Grammar.validate(stmt))
         namespace <- namespaceParser(v.required(Kw.Namespace))
+        _         <- ParserResult.modify(_.copy(namespace = namespace))
         prefix    <- prefixParser(v.required(Kw.Prefix))
-      } yield (Module(arg, namespace, prefix))
-      
-      moduleResult
+        dataDefs  <- dataDefParser(v)
+      } yield (Module(arg, namespace, prefix, dataDefs))
     }
   }
 
-  def namespaceParser(stmt: Statement): ParserResult[String] = {
-    stmt.arg.toRight("Arguement required for namespace")
+  def testing: ParserResult[String] = StateT.liftF(Right("testing"))
+
+  def namespaceParser(stmt: Statement): ParserResult[String] =
+    StateT.liftF(stmt.arg.toRight("Arguement required for namespace"))
+
+  def prefixParser(stmt: Statement): ParserResult[String] = StateT.liftF(stmt.arg.toRight("Arguement required for prefix"))
+
+  def containerParser(stmt: Statement): ParserResult[SchemaNode] = {
+    for {
+      v   <- ParserResult.lift(Grammar.validate(stmt))
+      ctx <- StateT.get
+    } yield (SchemaNode(stmt.arg.get, ctx.namespace, None, List.empty, ContainerKind))
   }
 
-  def prefixParser(stmt: Statement): ParserResult[String] = {
-    stmt.arg.toRight("Arguement required for prefix")
+  def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
+    vStmts.stmts.lift(Keyword.Container).getOrElse(List.empty).map(containerParser).sequence
   }
 
   val schemaModule = moduleParser.lift

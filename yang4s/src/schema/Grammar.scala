@@ -60,10 +60,15 @@ object ValidateArgument {
   }
 }
 object Grammar {
+  import Cardinality.*
   private val rfc6020: Map[Keyword, (ValidateArgument, Rules)] = Map(
     Keyword.Module -> (ValidateArgument.identity, Map(
       Keyword.Namespace -> Grammar(required),
-      Keyword.Prefix -> Grammar(required)
+      Keyword.Prefix    -> Grammar(required),
+      Keyword.Container -> Grammar(many0()),
+    )),
+    Keyword.Container -> (ValidateArgument.identity, Map(
+
     ))
   )
 

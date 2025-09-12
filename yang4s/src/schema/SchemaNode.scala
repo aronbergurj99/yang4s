@@ -1,9 +1,9 @@
 package yang4s.schema
 
 case class SchemaNode(
-  name: Option[String],
-  namespace: Option[String],
+  name: String,
+  namespace: String,
   description: Option[String],
-  children: Seq[SchemaNode],
+  children: List[SchemaNode],
   kind: SchemaKind
 )

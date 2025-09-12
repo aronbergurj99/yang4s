@@ -1,4 +1,5 @@
 module example {
     namespace "http://aronj.is/example";
     prefix "example";
+    container testing;
 }

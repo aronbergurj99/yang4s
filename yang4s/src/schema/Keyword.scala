@@ -4,6 +4,7 @@ enum Keyword(val literal: String) {
   case Module extends Keyword("module")
   case Namespace extends Keyword("namespace")
   case Prefix extends Keyword("prefix")
+  case Container extends Keyword("container")
 }
 
 object Keyword {
