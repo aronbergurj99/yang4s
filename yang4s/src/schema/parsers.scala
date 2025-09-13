@@ -63,7 +63,16 @@ object parsers {
       v <- ParserResult.lift(Grammar.validate(stmt))
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
-    } yield (LeafNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
+      tpe <- typeParser(v.required(Keyword.Type))
+    } yield (LeafNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs, tpe))
+  }
+
+  def typeParser(stmt: Statement): ParserResult[SchemaType] = {
+    for {
+      v <- ParserResult.lift(Grammar.validate(stmt))
+    } yield (stmt.arg.get match {
+      case "string" => SchemaType.StringType
+    })
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {

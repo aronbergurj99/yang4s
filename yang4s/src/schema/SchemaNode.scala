@@ -18,4 +18,4 @@ sealed trait SchemaNode {
 case class ContainerNode(meta: SchemaMeta, dataDefs: List[SchemaNode]) extends SchemaNode
 case class ListNode(meta: SchemaMeta, dataDefs: List[SchemaNode]) extends SchemaNode
 
-case class LeafNode(meta: SchemaMeta, dataDefs: List[SchemaNode]) extends SchemaNode
+case class LeafNode(meta: SchemaMeta, dataDefs: List[SchemaNode], tpe: SchemaType) extends SchemaNode

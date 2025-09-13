@@ -58,31 +58,38 @@ object ValidateArgument {
   def identity: ValidateArgument = { arg =>
     arg.toRight("Missing argument").map(_ => ())
   }
+
+  def leafTypeArg: ValidateArgument = { arg =>
+    arg.flatMap(a => SchemaType.values.find(st => st.literal == a)).toRight("Not a valid type.").map(_ => ())
+  }
+
 }
 object Grammar {
   import Cardinality.*
   private val rfc6020: Map[Keyword, (ValidateArgument, Rules)] = Map(
     Keyword.Module -> (ValidateArgument.identity, Map(
       Keyword.Namespace -> Grammar(required),
-      Keyword.Prefix    -> Grammar(required),
+      Keyword.Prefix -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
-      Keyword.List -> Grammar(many0()),
+      Keyword.List -> Grammar(many0())
     )),
     Keyword.Container -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Leaf -> Grammar(many0())
     )),
     Keyword.List -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Leaf -> Grammar(many0())
     )),
     Keyword.Leaf -> (ValidateArgument.identity, Map(
+      Keyword.Type -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Leaf -> Grammar(many0())
     )),
+    Keyword.Type -> (ValidateArgument.leafTypeArg, Map())
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {

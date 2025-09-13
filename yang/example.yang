@@ -1,9 +1,12 @@
 module example {
     namespace "http://aronj.is/example";
     prefix "example";
+
     container interfaces {
         list TenGigE {
-            leaf 0/0/0/1 {}
+            leaf 0/0/0/1 {
+                type string;
+            }
         }
     }
 
