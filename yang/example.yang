@@ -4,4 +4,10 @@ module example {
     container interfaces {
         list TenGigE {}
     }
+
+    container first {
+        list second {
+            container third;
+        }
+    }
 }

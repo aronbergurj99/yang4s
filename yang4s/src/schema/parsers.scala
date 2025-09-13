@@ -35,9 +35,11 @@ object parsers {
 
   def testing: ParserResult[String] = StateT.liftF(Right("testing"))
 
+  // Todo: Validate through grammar.
   def namespaceParser(stmt: Statement): ParserResult[String] =
     StateT.liftF(stmt.arg.toRight("Arguement required for namespace"))
 
+  // Todo: Validate through grammar.
   def prefixParser(stmt: Statement): ParserResult[String] = StateT.liftF(stmt.arg.toRight("Arguement required for prefix"))
 
   def containerParser(stmt: Statement): ParserResult[SchemaNode] = {
@@ -52,7 +54,8 @@ object parsers {
     for {
       v <- ParserResult.lift(Grammar.validate(stmt))
       ctx <- StateT.get
-    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), List.empty))
+      dataDefs <- dataDefParser(v)
+    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {

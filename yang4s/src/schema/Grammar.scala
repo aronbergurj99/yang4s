@@ -66,11 +66,16 @@ object Grammar {
       Keyword.Namespace -> Grammar(required),
       Keyword.Prefix    -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
-    )),
-    Keyword.Container -> (ValidateArgument.identity, Map(
       Keyword.List -> Grammar(many0()),
     )),
-    Keyword.List -> (ValidateArgument.identity, Map())
+    Keyword.Container -> (ValidateArgument.identity, Map(
+      Keyword.Container -> Grammar(many0()),
+      Keyword.List -> Grammar(many0()),
+    )),
+    Keyword.List -> (ValidateArgument.identity, Map(
+      Keyword.Container -> Grammar(many0()),
+      Keyword.List -> Grammar(many0()),
+    ))
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
