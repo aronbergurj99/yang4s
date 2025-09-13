@@ -6,6 +6,7 @@ enum Keyword(val literal: String) {
   case Prefix extends Keyword("prefix")
   case Container extends Keyword("container")
   case List extends Keyword("list")
+  case Leaf extends Keyword("leaf")
 }
 
 object Keyword {

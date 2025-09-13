@@ -2,7 +2,9 @@ module example {
     namespace "http://aronj.is/example";
     prefix "example";
     container interfaces {
-        list TenGigE {}
+        list TenGigE {
+            leaf 0/0/0/1 {}
+        }
     }
 
     container first {

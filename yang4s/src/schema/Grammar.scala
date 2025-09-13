@@ -71,11 +71,18 @@ object Grammar {
     Keyword.Container -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
+      Keyword.Leaf -> Grammar(many0()),
     )),
     Keyword.List -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-    ))
+      Keyword.Leaf -> Grammar(many0()),
+    )),
+    Keyword.Leaf -> (ValidateArgument.identity, Map(
+      Keyword.Container -> Grammar(many0()),
+      Keyword.List -> Grammar(many0()),
+      Keyword.Leaf -> Grammar(many0()),
+    )),
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {

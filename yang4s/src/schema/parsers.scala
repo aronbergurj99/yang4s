@@ -58,11 +58,20 @@ object parsers {
     } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
   }
 
+  def LeafParser(stmt: Statement): ParserResult[SchemaNode] = {
+    for {
+      v <- ParserResult.lift(Grammar.validate(stmt))
+      ctx <- StateT.get
+      dataDefs <- dataDefParser(v)
+    } yield (LeafNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
+  }
+
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
     // Todo: We should maintain order based on definition in source file.
     Seq(
         (Keyword.Container, containerParser),
         (Keyword.List, listParser),
+        (Keyword.Leaf, LeafParser),
       ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
         acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
       }
