@@ -26,9 +26,9 @@ object parsers {
       for {
         v <- ParserResult.lift(Grammar.validate(stmt))
         namespace <- namespaceParser(v.required(Kw.Namespace))
-        _         <- ParserResult.modify(_.copy(namespace = namespace))
-        prefix    <- prefixParser(v.required(Kw.Prefix))
-        dataDefs  <- dataDefParser(v)
+        _ <- ParserResult.modify(_.copy(namespace = namespace))
+        prefix <- prefixParser(v.required(Kw.Prefix))
+        dataDefs <- dataDefParser(v)
       } yield (Module(arg, namespace, prefix, dataDefs))
     }
   }
@@ -42,13 +42,28 @@ object parsers {
 
   def containerParser(stmt: Statement): ParserResult[SchemaNode] = {
     for {
-      v   <- ParserResult.lift(Grammar.validate(stmt))
+      v <- ParserResult.lift(Grammar.validate(stmt))
       ctx <- StateT.get
-    } yield (SchemaNode(stmt.arg.get, ctx.namespace, None, List.empty, ContainerKind))
+      dataDefs <- dataDefParser(v)
+    } yield (ContainerNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
+  }
+
+  def listParser(stmt: Statement): ParserResult[SchemaNode] = {
+    for {
+      v <- ParserResult.lift(Grammar.validate(stmt))
+      ctx <- StateT.get
+    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), List.empty))
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
-    vStmts.stmts.lift(Keyword.Container).getOrElse(List.empty).map(containerParser).sequence
+    // Todo: We should maintain order based on definition in source file.
+    Seq(
+        (Keyword.Container, containerParser),
+        (Keyword.List, listParser),
+      ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
+        acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
+      }
+      .sequence
   }
 
   val schemaModule = moduleParser.lift
