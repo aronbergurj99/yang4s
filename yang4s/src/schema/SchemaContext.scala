@@ -12,6 +12,8 @@ import scala.annotation.tailrec
 import yang4s.parser.StatementParserError
 import cats.implicits.{given, *}
 import cats.data.StateT
+import scala.util.Failure
+import scala.util.Success
 
 type SchemaError = String
 
@@ -23,12 +25,14 @@ case class ModuleName(name: String, revision: Option[String] = None) {
 
 case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) {
   def loadModule(moduleName: ModuleName): Either[SchemaError, SchemaContext] = {
-    findModulePath(moduleName).toRight("Moudle not found").map { p =>
+    findModulePath(moduleName).toRight("Module not found").map { p =>
         Using(Source.fromFile(p.toFile)) { source =>
             StatementParser().parse(source.mkString).flatMap { stmt =>
                 parsers.moduleParser(stmt).run(ParsingCtx("global")).map(_._2)
               }
-          }.getOrElse(Left("Unexpected error"))
+          } match
+          case Failure(exception) => Left(exception.toString())
+          case Success(value) => value
       }.getOrElse(Left(s"${moduleName.toString()} does not exist")).map(m => copy(modules = m :: modules ))
   }
 

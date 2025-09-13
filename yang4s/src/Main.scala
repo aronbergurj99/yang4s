@@ -10,6 +10,6 @@ object Main {
       ctx <- SchemaContext.empty(Seq("yang")).loadModules(List(ModuleName("example")))
     } yield (printTreeDiagram(ctx))
 
-    println(result.getOrElse(""))
+    println(result.merge)
   }
 }

@@ -40,8 +40,8 @@ object TreeDiagram {
 
       node match
         case ContainerNode(meta, dataDefs) => printNode(meta, dataDefs)
-        case ListNode(meta, dataDefs) => printNode(meta, dataDefs, opts="*")
-        case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"[${tpe.literal}]"))
+        case ListNode(meta, dataDefs, key) => printNode(meta, dataDefs, opts="*", suffix= key.map(k => s"[$k]"))
+        case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"${tpe.literal}"))
       
     }
   }

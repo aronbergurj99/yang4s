@@ -55,7 +55,14 @@ object parsers {
       v <- ParserResult.lift(Grammar.validate(stmt))
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
-    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
+      key <- ParserResult.lift(Right(v.optional(Keyword.Key))).flatMap(_.map(keyParser).sequence)
+    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs, key))
+  }
+
+  def keyParser(stmt: Statement): ParserResult[String] = {
+    for {
+      v <- ParserResult.lift(Grammar.validate(stmt))
+    } yield (stmt.arg.get)
   }
 
   def LeafParser(stmt: Statement): ParserResult[SchemaNode] = {

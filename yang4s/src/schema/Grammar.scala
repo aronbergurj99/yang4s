@@ -18,7 +18,7 @@ case class ValidStatements(
     unknowns: List[Statement]
 ) {
   def required(kw: Keyword): Statement = stmts(kw)(0)
-  def optional(kw: Keyword): Option[Statement] = stmts(kw).lift(0)
+  def optional(kw: Keyword): Option[Statement] = stmts.lift(kw).flatMap(_.lift(0))
   def many0(kw: Keyword): List[Statement] = stmts(kw)
 }
 
@@ -81,7 +81,8 @@ object Grammar {
     Keyword.List -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0())
+      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Key -> Grammar(optional)
     )),
     Keyword.Leaf -> (ValidateArgument.identity, Map(
       Keyword.Type -> Grammar(required),
@@ -89,7 +90,8 @@ object Grammar {
       Keyword.List -> Grammar(many0()),
       Keyword.Leaf -> Grammar(many0())
     )),
-    Keyword.Type -> (ValidateArgument.leafTypeArg, Map())
+    Keyword.Type -> (ValidateArgument.leafTypeArg, Map()),
+    Keyword.Key -> (ValidateArgument.identity, Map())
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
