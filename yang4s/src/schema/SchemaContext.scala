@@ -21,7 +21,7 @@ case class ModuleName(name: String, revision: Option[String] = None) {
 }
 
 
-case class SchemaContext(searchPaths: Seq[String], modules: List[Module]) {
+case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) {
   def loadModule(moduleName: ModuleName): Either[SchemaError, SchemaContext] = {
     findModulePath(moduleName).toRight("Moudle not found").map { p =>
         Using(Source.fromFile(p.toFile)) { source =>
