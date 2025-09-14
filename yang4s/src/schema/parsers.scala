@@ -26,10 +26,8 @@ object parsers {
       for {
         v <- ParserResult.lift(Grammar.validate(stmt))
         namespace <- namespaceParser(v.required(Kw.Namespace))
-        _ <- ParserResult.modify(_.copy(namespace = namespace))
         prefix <- prefixParser(v.required(Kw.Prefix))
-        typeDefs <- v.many0(Keyword.TypeDef).map(typeDefParser).sequence
-        _ <- ParserResult.modify(_.copy(typeDefs = typeDefs))
+        typeDefs <- typeDefsParser(v)
         dataDefs <- dataDefParser(v)
       } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
     }
@@ -39,7 +37,10 @@ object parsers {
 
   // Todo: Validate through grammar.
   def namespaceParser(stmt: Statement): ParserResult[String] =
-    StateT.liftF(stmt.arg.toRight("Arguement required for namespace"))
+    for {
+      namespace <- StateT.liftF(stmt.arg.toRight("Arguement required for namespace"))
+      _ <- ParserResult.modify(_.copy(namespace = namespace))
+    } yield (namespace)
 
   // Todo: Validate through grammar.
   def prefixParser(stmt: Statement): ParserResult[String] = StateT.liftF(stmt.arg.toRight("Arguement required for prefix"))
@@ -94,6 +95,13 @@ object parsers {
       v <- ParserResult.lift(Grammar.validate(stmt))
       baseType <- typeParser(v.required(Keyword.Type))
     } yield (baseType.copy(name = stmt.arg.get))
+  }
+
+  def typeDefsParser(v: ValidStatements): ParserResult[List[SchemaType]] = {
+    for {
+      typeDefs <- v.many0(Keyword.TypeDef).map(typeDefParser).sequence
+      _ <- ParserResult.modify(_.copy(typeDefs = typeDefs))
+    } yield (typeDefs)
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
