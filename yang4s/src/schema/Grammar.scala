@@ -116,13 +116,11 @@ object Grammar {
             case Statement(Some(prefix), _, _, _) =>
               Right((m, stmt1 :: unknowns, section))
             case Statement(None, keyword, _, _) =>
-              // Todo: Refine errors
-              // Unknown keyword vs keyword not in current grammar and check section based on g
               Keyword
-                .fromLiteral(keyword)
-                .flatMap(kw => rules.lift(kw).map((_, kw)))
-                .fold(Left("Unknown keyword")) { (g, kw) =>
-                  Right((m.+((kw, stmt1 :: m.lift(kw).getOrElse(List.empty))), unknowns, g.section))
+                .fromLiteral(keyword).toRight(s"$keyword is not a valid keyword.")
+                .flatMap(kw => rules.lift(kw).map((_, kw)).toRight(s"$kw is not a valid substatement of ${stmt.keyword}"))
+                .map { (g, kw) =>
+                  (m.+((kw, stmt1 :: m.lift(kw).getOrElse(List.empty))), unknowns, g.section)
                 }
         }
         .map(r => (r._1, r._2))
