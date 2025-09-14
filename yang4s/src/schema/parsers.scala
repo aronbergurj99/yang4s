@@ -77,9 +77,7 @@ object parsers {
   def typeParser(stmt: Statement): ParserResult[SchemaType] = {
     for {
       v <- ParserResult.lift(Grammar.validate(stmt))
-    } yield (stmt.arg.get match {
-      case "string" => SchemaType.StringType
-    })
+    } yield (SchemaType(stmt.arg.get, BuiltInType.fromLiteral(stmt.arg.get).get))
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {

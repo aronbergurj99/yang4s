@@ -58,11 +58,6 @@ object ValidateArgument {
   def identity: ValidateArgument = { arg =>
     arg.toRight("Missing argument").map(_ => ())
   }
-
-  def leafTypeArg: ValidateArgument = { arg =>
-    arg.flatMap(a => SchemaType.values.find(st => st.literal == a)).toRight("Not a valid type.").map(_ => ())
-  }
-
 }
 object Grammar {
   import Cardinality.*
@@ -90,7 +85,7 @@ object Grammar {
       Keyword.List -> Grammar(many0()),
       Keyword.Leaf -> Grammar(many0())
     )),
-    Keyword.Type -> (ValidateArgument.leafTypeArg, Map()),
+    Keyword.Type -> (ValidateArgument.identity, Map()),
     Keyword.Key -> (ValidateArgument.identity, Map())
   )
 
