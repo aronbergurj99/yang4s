@@ -49,7 +49,6 @@ object TreeDiagram {
   def printTreeDiagram[A: TreeDiagramPrintable](v: A): String = v.print(0)
 
   def printAll[A: TreeDiagramPrintable](vs: List[A], lvl: Int = 0): String = {
-    if (vs.isEmpty) ""
-    else vs.map(_.print(lvl)).mkString
+    vs.map(_.print(lvl)).mkString
   }
 }
