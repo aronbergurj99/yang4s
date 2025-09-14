@@ -27,7 +27,7 @@ object TreeDiagram {
         s"module: $name\n" ++ printAll(dataDefs, lvl + 1)
       }
       ctx match
-        case yang4s.schema.Module(name, _, _, dataDefs) => printModule(name, dataDefs)
+        case yang4s.schema.Module(name, _, _, dataDefs, _) => printModule(name, dataDefs)
         case SubModule(name, _, _, dataDefs) => printModule(name, dataDefs)
     }
   }

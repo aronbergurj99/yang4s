@@ -66,7 +66,8 @@ object Grammar {
       Keyword.Namespace -> Grammar(required),
       Keyword.Prefix -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
-      Keyword.List -> Grammar(many0())
+      Keyword.List -> Grammar(many0()),
+      Keyword.TypeDef -> Grammar(many0())
     )),
     Keyword.Container -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
@@ -86,7 +87,10 @@ object Grammar {
       Keyword.Leaf -> Grammar(many0())
     )),
     Keyword.Type -> (ValidateArgument.identity, Map()),
-    Keyword.Key -> (ValidateArgument.identity, Map())
+    Keyword.Key -> (ValidateArgument.identity, Map()),
+    Keyword.TypeDef -> (ValidateArgument.identity, Map(
+      Keyword.Type -> Grammar(required)
+    ))
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
@@ -113,7 +117,7 @@ object Grammar {
             case Statement(None, keyword, _, _) =>
               Keyword
                 .fromLiteral(keyword).toRight(s"$keyword is not a valid keyword.")
-                .flatMap(kw => rules.lift(kw).map((_, kw)).toRight(s"$kw is not a valid substatement of ${stmt.keyword}"))
+                .flatMap(kw => rules.lift(kw).map((_, kw)).toRight(s"${kw.literal} is not a valid substatement of ${stmt.keyword}"))
                 .map { (g, kw) =>
                   (m.+((kw, stmt1 :: m.lift(kw).getOrElse(List.empty))), unknowns, g.section)
                 }

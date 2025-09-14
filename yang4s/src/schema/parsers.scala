@@ -10,7 +10,7 @@ import cats.implicits.{*, given}
 import cats.parse.Parser
 import cats.Applicative
 
-case class ParsingCtx(namespace: String)
+case class ParsingCtx(namespace: String, typeDefs: List[SchemaType])
 
 object parsers {
   type ErrorOr[A] = Either[String, A]
@@ -28,8 +28,10 @@ object parsers {
         namespace <- namespaceParser(v.required(Kw.Namespace))
         _ <- ParserResult.modify(_.copy(namespace = namespace))
         prefix <- prefixParser(v.required(Kw.Prefix))
+        typeDefs <- v.many0(Keyword.TypeDef).map(typeDefParser).sequence
+        _ <- ParserResult.modify(_.copy(typeDefs = typeDefs))
         dataDefs <- dataDefParser(v)
-      } yield (Module(arg, namespace, prefix, dataDefs))
+      } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
     }
   }
 
@@ -77,19 +79,32 @@ object parsers {
   def typeParser(stmt: Statement): ParserResult[SchemaType] = {
     for {
       v <- ParserResult.lift(Grammar.validate(stmt))
-    } yield (SchemaType(stmt.arg.get, BuiltInType.fromLiteral(stmt.arg.get).get))
+      ctx <- StateT.get
+      b <- ParserResult.lift(
+        BuiltInType
+          .fromLiteral(stmt.arg.get)
+          .orElse(ctx.typeDefs.find(_.name == stmt.arg.get).map(_.tpe))
+          .toRight(s"Unknown type $stmt.arg.get")
+      )
+    } yield (SchemaType(stmt.arg.get, b))
+  }
+
+  def typeDefParser(stmt: Statement): ParserResult[SchemaType] = {
+    for {
+      v <- ParserResult.lift(Grammar.validate(stmt))
+      baseType <- typeParser(v.required(Keyword.Type))
+    } yield (baseType.copy(name = stmt.arg.get))
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
     // Todo: We should maintain order based on definition in source file.
     Seq(
-        (Keyword.Container, containerParser),
-        (Keyword.List, listParser),
-        (Keyword.Leaf, LeafParser),
-      ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
-        acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
-      }
-      .sequence
+      (Keyword.Container, containerParser),
+      (Keyword.List, listParser),
+      (Keyword.Leaf, LeafParser)
+    ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
+      acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
+    }.sequence
   }
 
   val schemaModule = moduleParser.lift

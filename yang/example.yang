@@ -2,6 +2,10 @@ module example {
     namespace "http://aronj.is/example";
     prefix "example";
 
+    typedef hostname {
+        type string;
+    }
+
     container interfaces {
         list TenGigE {
             key name;
@@ -13,6 +17,10 @@ module example {
 
     container first {
         list second {
+            key hostname;
+            leaf hostname {
+                type hostname;
+            }
             container third;
         }
     }

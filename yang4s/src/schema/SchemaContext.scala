@@ -28,7 +28,7 @@ case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) 
     findModulePath(moduleName).toRight("Module not found").map { p =>
         Using(Source.fromFile(p.toFile)) { source =>
             StatementParser().parse(source.mkString).flatMap { stmt =>
-                parsers.moduleParser(stmt).run(ParsingCtx("global")).map(_._2)
+                parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty)).map(_._2)
               }
           } match
           case Failure(exception) => Left(exception.toString())
