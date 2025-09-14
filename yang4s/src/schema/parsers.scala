@@ -84,7 +84,7 @@ object parsers {
         BuiltInType
           .fromLiteral(stmt.arg.get)
           .orElse(ctx.typeDefs.find(_.name == stmt.arg.get).map(_.tpe))
-          .toRight(s"Unknown type $stmt.arg.get")
+          .toRight(s"Unknown type ${stmt.arg.get}")
       )
     } yield (SchemaType(stmt.arg.get, b))
   }
