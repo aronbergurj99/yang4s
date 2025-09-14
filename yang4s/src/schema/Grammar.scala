@@ -90,7 +90,9 @@ object Grammar {
     Keyword.Key -> (ValidateArgument.identity, Map()),
     Keyword.TypeDef -> (ValidateArgument.identity, Map(
       Keyword.Type -> Grammar(required)
-    ))
+    )),
+    Keyword.Namespace -> (ValidateArgument.identity, Map()),
+    Keyword.Prefix -> (ValidateArgument.identity, Map())
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
