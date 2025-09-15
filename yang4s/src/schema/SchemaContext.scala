@@ -18,44 +18,53 @@ import scala.util.Success
 type SchemaError = String
 
 case class ModuleName(name: String, revision: Option[String] = None) {
-  def toFileName: String = s"${toString()}.yang" 
+  def toFileName: String = s"${toString()}.yang"
   override def toString(): String = revision.map(r => s"$name@$r").getOrElse(name)
 }
 
-
 case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) {
-  def loadModule(moduleName: ModuleName): Either[SchemaError, SchemaContext] = {
-    findModulePath(moduleName).toRight("Module not found").map { p =>
-        Using(Source.fromFile(p.toFile)) { source =>
+  def loadModule(moduleName: ModuleName): Either[SchemaError, (SchemaContext, SchemaModule)] = {
+    findModule(moduleName.name).fold(
+      findModulePath(moduleName)
+        .toRight("Module not found")
+        .map { p =>
+          Using(Source.fromFile(p.toFile)) { source =>
             StatementParser().parse(source.mkString).flatMap { stmt =>
-                parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty)).map(_._2)
-              }
+              parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty, this, Map.empty)).map(_._2)
+            }
           } match
-          case Failure(exception) => Left(exception.toString())
-          case Success(value) => value
-      }.getOrElse(Left(s"${moduleName.toString()} does not exist")).map(m => copy(modules = m :: modules ))
+            case Failure(exception) => Left(exception.toString())
+            case Success(value)     => value
+        }
+        .getOrElse(Left(s"${moduleName.toString()} does not exist"))
+        .map(m => (copy(modules = m :: modules), m))
+    )(m => Right((this, m)))
   }
 
-  def loadModules(moduleNames: List[ModuleName]): Either[SchemaError, SchemaContext] = {
+  def loadModules(moduleNames: List[ModuleName]): Either[SchemaError, (SchemaContext, List[SchemaModule])] = {
     @tailrec
-    def loop(ms: List[ModuleName], ctx: SchemaContext): Either[SchemaError, SchemaContext] = {
+    def loop(ms: List[ModuleName], ctx: SchemaContext, acc: List[SchemaModule]): Either[SchemaError, (SchemaContext, List[SchemaModule])] = {
       ms match
         case head :: next => {
           ctx.loadModule(head) match
-            case left @ Left(_) => left
-            case Right(value) => loop(next, value)
+            case Left(e) => Left(e)
+            case Right(value)   => loop(next, value._1, value._2 :: acc)
         }
-        case Nil => Right(ctx)
+        case Nil => Right((ctx,acc))
     }
-    loop(moduleNames, this)
+    loop(moduleNames, this, List.empty)
+  }
+
+  def findModule(moduleName: String): Option[SchemaModule] = {
+    modules.find(_.name == moduleName)
   }
 
   def findModulePath(moduleName: ModuleName): Option[Path] = {
     val testing = LazyList(searchPaths.map(Paths.get(_))*).flatMap { path =>
-      Using(Files.walk(path)) { stream => 
+      Using(Files.walk(path)) { stream =>
         stream.toScala(LazyList).find(p => Files.isRegularFile(p) && p.getFileName().toString == moduleName.toFileName)
-        }.getOrElse(LazyList.empty)
-      }
+      }.getOrElse(LazyList.empty)
+    }
     testing.take(1).toList.headOption
   }
 }

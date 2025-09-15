@@ -19,7 +19,7 @@ case class ValidStatements(
 ) {
   def required(kw: Keyword): Statement = stmts(kw)(0)
   def optional(kw: Keyword): Option[Statement] = stmts.lift(kw).flatMap(_.lift(0))
-  def many0(kw: Keyword): List[Statement] = stmts(kw)
+  def many0(kw: Keyword): List[Statement] = stmts.lift(kw).getOrElse(List.empty)
 }
 
 case class Cardinality(min: Int, max: Option[Int]) {
@@ -65,6 +65,7 @@ object Grammar {
     Keyword.Module -> (ValidateArgument.identity, Map(
       Keyword.Namespace -> Grammar(required),
       Keyword.Prefix -> Grammar(required),
+      Keyword.Import -> Grammar(many0()),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
       Keyword.TypeDef -> Grammar(many0())
@@ -92,7 +93,10 @@ object Grammar {
       Keyword.Type -> Grammar(required)
     )),
     Keyword.Namespace -> (ValidateArgument.identity, Map()),
-    Keyword.Prefix -> (ValidateArgument.identity, Map())
+    Keyword.Prefix -> (ValidateArgument.identity, Map()),
+    Keyword.Import -> (ValidateArgument.identity, Map(
+      Keyword.Prefix -> Grammar(required)
+    ))
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {

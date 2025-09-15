@@ -15,6 +15,8 @@ trait TreeDiagramPrintable[A] {
   extension (a: A) def print(lvl: Int): String
 }
 object TreeDiagram {
+  def apply[A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[A] = ev
+
   given TreeDiagramPrintable[SchemaContext] with {
     extension (ctx: SchemaContext) def print(lvl: Int) = {
       printAll(ctx.modules)
@@ -28,7 +30,7 @@ object TreeDiagram {
       }
       ctx match
         case yang4s.schema.Module(name, _, _, dataDefs, _) => printModule(name, dataDefs)
-        case SubModule(name, _, _, dataDefs) => printModule(name, dataDefs)
+        case SubModule(name, _, _, dataDefs, _) => printModule(name, dataDefs)
     }
   }
 
@@ -44,6 +46,10 @@ object TreeDiagram {
         case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"${" ".repeat(4)}${tpe.name}"))
       
     }
+  }
+
+  given [A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[List[A]] with {
+    extension (l: List[A]) def print(lvl: Int): String = printAll(l, lvl)
   }
 
   def printTreeDiagram[A: TreeDiagramPrintable](v: A): String = v.print(0)

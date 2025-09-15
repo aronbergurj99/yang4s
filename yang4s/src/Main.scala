@@ -7,8 +7,8 @@ import yang4s.utils.TreeDiagram.{*, given}
 object Main {
   def main(args: Array[String]) = {
     val result = for {
-      ctx <- SchemaContext.empty(Seq("yang")).loadModules(List(ModuleName("example")))
-    } yield (printTreeDiagram(ctx))
+      (_, modules) <- SchemaContext.empty(Seq("yang")).loadModules(List(ModuleName("example")))
+    } yield (printTreeDiagram(modules))
 
     println(result.merge)
   }

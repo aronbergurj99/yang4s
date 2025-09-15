@@ -2,6 +2,10 @@ module example {
     namespace "http://aronj.is/example";
     prefix "example";
 
+    import example2 {
+        prefix example2;
+    }
+
     typedef hostname {
         type string;
     }
@@ -10,7 +14,7 @@ module example {
         list TenGigE {
             key name;
             leaf name {
-                type string;
+                type example2:test-type;
             }
         }
     }

@@ -1,0 +1,8 @@
+module example2 {
+    namespace "http://aronj.is/example2";
+    prefix "example2";
+
+    typedef test-type {
+        type string;
+    }
+}

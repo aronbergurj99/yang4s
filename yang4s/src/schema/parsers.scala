@@ -10,7 +10,8 @@ import cats.implicits.{*, given}
 import cats.parse.Parser
 import cats.Applicative
 
-case class ParsingCtx(namespace: String, typeDefs: List[SchemaType])
+case class ParsingCtx(namespace: String, typeDefs: List[SchemaType], schemaCtx: SchemaContext, imports: Map[String, SchemaModule])
+case class Import(module: String, prefix: String)
 
 object parsers {
   type Error = String
@@ -24,7 +25,7 @@ object parsers {
     def modify = StateT.modify[ErrorOr, ParsingCtx]
 
     def fromValidated[A](stmt: Statement)(fn: ValidStatements => ParserResult[A]) = {
-      Grammar.validate(stmt).fold(fail(_), fn(_))
+      Grammar.validate(stmt).fold(fail, fn)
     }
 
     def validate(stmt: Statement): ParserResult[ValidStatements] = fromValidated(stmt)(success)
@@ -36,10 +37,19 @@ object parsers {
         for {
           namespace <- namespaceParser(v.required(Kw.Namespace))
           prefix <- prefixParser(v.required(Kw.Prefix))
+          imports <- importsParser(v)
           typeDefs <- typeDefsParser(v)
           dataDefs <- dataDefParser(v)
         } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
       }
+  }
+
+  def resolveImports(imports: List[Import]): ParserResult[Unit] = {
+    for {
+      ctx <- StateT.get
+      (sCtx, modules) <- ParserResult.fromEither(ctx.schemaCtx.loadModules(imports.map(i => ModuleName(i.module, None))))
+      _ <- ParserResult.modify(_.copy(schemaCtx = sCtx, imports = Map(imports.map(_.prefix).zip(modules)*)))
+    } yield ()
   }
 
   def namespaceParser(stmt: Statement): ParserResult[String] =
@@ -73,15 +83,24 @@ object parsers {
   }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
-    for {
-      ctx <- StateT.get
-      b <- ParserResult.fromEither(
+    val (prefix, tpe): (Option[String], String) = stmt.arg.get.split(":", 2) match
+      case Array(prefix, tpe) => (Some(prefix), tpe)
+      case _ => (None, stmt.arg.get)
+      
+    def getType(ctx: ParsingCtx, tpe: String, prefix: Option[String]): ErrorOr[SchemaType] = {
+      val name = prefix.map(p => s"$p:$tpe").getOrElse(tpe)
+      prefix.flatMap(p => ctx.imports.lift(p).flatMap(_.typeDefs.find(_.name == tpe)).map(_.copy(name = name))).orElse(
         BuiltInType
           .fromLiteral(stmt.arg.get)
           .orElse(ctx.typeDefs.find(_.name == stmt.arg.get).map(_.tpe))
-          .toRight(s"Unknown type ${stmt.arg.get}")
-      )
-    } yield (SchemaType(stmt.arg.get, b))
+          .map(b => SchemaType(tpe, b))
+      ).toRight(s"Unknown type ${name}")
+    } 
+
+    for {
+      ctx <- StateT.get
+      st <- ParserResult.fromEither(getType(ctx, tpe, prefix))
+    } yield (st)
   }
 
   def typeDefParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
@@ -92,6 +111,17 @@ object parsers {
 
   def typeDefsParser(v: ValidStatements): ParserResult[List[SchemaType]] =
     v.many0(Keyword.TypeDef).map(typeDefParser).sequence.flatTap(typeDefs => ParserResult.modify(_.copy(typeDefs = typeDefs)))
+
+  def importParser(stmt: Statement): ParserResult[Import] = ParserResult.fromValidated(stmt) { v =>
+      for {
+        prefix <- prefixParser(v.required(Keyword.Prefix))
+      } yield (Import(stmt.arg.get, prefix))
+    }
+
+  def importsParser(v: ValidStatements): ParserResult[List[Import]] = {
+    v.many0(Keyword.Import).map(importParser).sequence.flatTap(resolveImports(_))
+  }
+
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
     // Todo: We should maintain order based on definition in source file.
@@ -106,6 +136,7 @@ object parsers {
 
   def parseString(stmt: Statement): ParserResult[String] = ParserResult.validate(stmt).as(stmt.arg.get)
 
-  val schemaModule = moduleParser.lift
+  // def parseMany(v: Vali)
 
+  val schemaModule = moduleParser.lift
 }
