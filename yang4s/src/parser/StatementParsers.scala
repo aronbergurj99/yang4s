@@ -12,7 +12,8 @@ trait StatementParsers { self: LexicalParsers =>
       identifier.map(v => (Option.empty[String], v))
   )
 
-  def argument = token0(string.?)
+  def combinedArgument = (token(string) ~ (token(P.char('+')) *> token(string)).rep0).map { (s, acc) => (List(s) ++ acc).mkString}
+  def argument = token0(unquotedString.orElse(combinedArgument).?)
 
   def statement = P.recursive[Statement] { stmtP =>
     (keyword ~ argument ~ (P.char(';').void.as(List.empty[Statement]) | token(
