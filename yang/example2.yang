@@ -5,4 +5,10 @@ module example2 {
     typedef test-type {
         type string;
     }
+
+    container hello {
+        leaf world {
+            type string;
+        }
+    }
 }

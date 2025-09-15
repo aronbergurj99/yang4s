@@ -30,6 +30,7 @@ object parsers {
     def modify = StateT.modify[ErrorOr, ParsingCtx]
     def modifyF = StateT.modifyF[ErrorOr, ParsingCtx]
     def inspectF[A] = StateT.inspectF[ErrorOr, ParsingCtx, A]
+    def inspect[A] = StateT.inspect[ErrorOr, ParsingCtx, A]
 
     def fromValidated[A](stmt: Statement)(fn: ValidStatements => ParserResult[A]) = {
       Grammar.validate(stmt).fold(fail, fn)
@@ -57,12 +58,14 @@ object parsers {
     ParserResult.modifyF { ctx =>
       for {
         (schemaCtx, modules) <- ctx.schemaCtx.loadModules(moduleNames)
-      } yield (
+      } yield  {
+
         ctx.copy(
           schemaCtx = schemaCtx,
           imports = imports.map(_.prefix).zip(modules).toMap
         )
-      )
+      }
+      
     }
   }
 
@@ -154,6 +157,4 @@ object parsers {
   }
 
   def parseString(stmt: Statement): ParserResult[String] = ParserResult.validate(stmt).as(stmt.arg.get)
-
-  val schemaModule = moduleParser.lift
 }

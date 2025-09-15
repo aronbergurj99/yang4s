@@ -30,14 +30,14 @@ case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) 
         .map { p =>
           Using(Source.fromFile(p.toFile)) { source =>
             StatementParser().parse(source.mkString).flatMap { stmt =>
-              parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty, this, Map.empty)).map(_._2)
+              parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty, this, Map.empty))
             }
           } match
             case Failure(exception) => Left(exception.toString())
             case Success(value)     => value
         }
         .getOrElse(Left(s"${moduleName.toString()} does not exist"))
-        .map(m => (copy(modules = m :: modules), m))
+        .map((pCtx, m) => (pCtx.schemaCtx.copy(modules = m :: pCtx.schemaCtx.modules), m))
     )(m => Right((this, m)))
   }
 
