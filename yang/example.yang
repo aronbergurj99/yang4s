@@ -6,6 +6,10 @@ module example {
         prefix example2;
     }
 
+    import ietf-yang-types {
+        prefix yang;
+    }
+
     typedef hostname {
         type string;
     }

@@ -1,6 +1,7 @@
 package yang4s.parser
 
 import cats.parse.Parser
+import cats.syntax.show._  // for .show
 
 type StatementParserError = String
 
@@ -19,7 +20,7 @@ object StatementParser {
     def parse(source: String): Either[StatementParserError, Statement] =
       document
         .parseAll(source)
-        .fold(e => Left(e.toString()), Right(_))
+        .fold(e => Left(e.show), Right(_))
   }
 
   def apply(): StatementParser = new Impl

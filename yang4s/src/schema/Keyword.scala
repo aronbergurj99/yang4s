@@ -11,6 +11,15 @@ enum Keyword(val literal: String) {
   case TypeDef extends Keyword("typedef")
   case Key extends Keyword("key")
   case Import extends Keyword("import")
+  case Organization extends Keyword("organization")
+  case Contact extends Keyword("contact")
+  case Description extends Keyword("description")
+  case Revision extends Keyword("revision")
+  case Reference extends Keyword("reference")
+  case Default extends Keyword("default")
+  case Pattern extends Keyword("pattern")
+  case Units extends Keyword("units")
+  case Status extends Keyword("status")
 }
 
 object Keyword {
