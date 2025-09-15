@@ -12,21 +12,21 @@ import yang4s.schema.SchemaMeta
 // https://datatracker.ietf.org/doc/html/rfc8340
 
 trait TreeDiagramPrintable[A] {
-  extension (a: A) def print(lvl: Int): String
+  extension (a: A) def print(prefix: String, isLast: Boolean = false): String
 }
 object TreeDiagram {
   def apply[A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[A] = ev
 
   given TreeDiagramPrintable[SchemaContext] with {
-    extension (ctx: SchemaContext) def print(lvl: Int) = {
-      printAll(ctx.modules)
+    extension (ctx: SchemaContext) def print(prefix: String, isLast: Boolean = false) = {
+      printAll(ctx.modules, "")
     }
   }
 
   given TreeDiagramPrintable[SchemaModule] with {
-    extension (ctx: SchemaModule) def print(lvl: Int) = {
+    extension (ctx: SchemaModule) def print(prefix: String, isLast: Boolean = false) = {
       def printModule(name: String, dataDefs: List[SchemaNode]): String = {
-        s"module: $name\n" ++ printAll(dataDefs, lvl + 1)
+        s"module: $name\n" ++ printAll(dataDefs, "  ")
       }
       ctx match
         case yang4s.schema.Module(name, _, _, dataDefs, _) => printModule(name, dataDefs)
@@ -35,9 +35,9 @@ object TreeDiagram {
   }
 
   given TreeDiagramPrintable[SchemaNode] with {
-    extension (node: SchemaNode) def print(lvl: Int) = {
+    extension (node: SchemaNode) def print(prefix: String, isLast: Boolean = false) = {
       def printNode(meta: SchemaMeta, dataDefs: List[SchemaNode], opts: String = "", suffix: Option[String] = None): String = {
-        " ".repeat(lvl * 3) ++ s"+--rw ${meta.name}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printAll(dataDefs, lvl + 1)
+        prefix ++ s"+--rw ${meta.name}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printAll(dataDefs, prefix ++ {if (isLast) "   " else "|  "} )
       }
 
       node match
@@ -49,12 +49,15 @@ object TreeDiagram {
   }
 
   given [A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[List[A]] with {
-    extension (l: List[A]) def print(lvl: Int): String = printAll(l, lvl)
+    extension (l: List[A]) def print(prefix: String, isLast: Boolean = false): String = printAll(l, prefix)
   }
 
-  def printTreeDiagram[A: TreeDiagramPrintable](v: A): String = v.print(0)
+  def printTreeDiagram[A: TreeDiagramPrintable](v: A): String = v.print("")
 
-  def printAll[A: TreeDiagramPrintable](vs: List[A], lvl: Int = 0): String = {
-    vs.map(_.print(lvl)).mkString
+
+  def printAll[A: TreeDiagramPrintable](vs: List[A], prefix: String): String = {
+    vs.zipWithIndex.map { (i, idx) =>
+        i.print(prefix, idx == vs.length - 1)
+      }.mkString
   }
 }
