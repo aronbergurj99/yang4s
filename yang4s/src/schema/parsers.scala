@@ -155,7 +155,5 @@ object parsers {
 
   def parseString(stmt: Statement): ParserResult[String] = ParserResult.validate(stmt).as(stmt.arg.get)
 
-  // def parseMany(v: Vali)
-
   val schemaModule = moduleParser.lift
 }
