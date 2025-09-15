@@ -20,6 +20,7 @@ enum Keyword(val literal: String) {
   case Pattern extends Keyword("pattern")
   case Units extends Keyword("units")
   case Status extends Keyword("status")
+  case Length extends Keyword("length")
 }
 
 object Keyword {
