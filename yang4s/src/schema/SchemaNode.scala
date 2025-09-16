@@ -1,8 +1,7 @@
 package yang4s.schema
 
 case class SchemaMeta(
-    name: String,
-    namespace: String,
+    qName: QName,
     description: Option[String]
 )
 
@@ -10,8 +9,8 @@ sealed trait SchemaNode {
   def meta: SchemaMeta
   def dataDefs: List[SchemaNode]
 
-  def name = meta.name
-  def namespace = meta.namespace
+  def name = meta.qName.localName
+  def namespace = meta.qName.namespace
   def description = meta.description
 }
 

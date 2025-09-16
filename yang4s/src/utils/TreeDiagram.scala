@@ -37,13 +37,13 @@ object TreeDiagram {
   given TreeDiagramPrintable[SchemaNode] with {
     extension (node: SchemaNode) def print(prefix: String, isLast: Boolean = false) = {
       def printNode(meta: SchemaMeta, dataDefs: List[SchemaNode], opts: String = "", suffix: Option[String] = None): String = {
-        prefix ++ s"+--rw ${meta.name}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printAll(dataDefs, prefix ++ {if (isLast) "   " else "|  "} )
+        prefix ++ s"+--rw ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printAll(dataDefs, prefix ++ {if (isLast) "   " else "|  "} )
       }
 
       node match
         case ContainerNode(meta, dataDefs) => printNode(meta, dataDefs)
         case ListNode(meta, dataDefs, key) => printNode(meta, dataDefs, opts="*", suffix= key.map(k => s"[$k]"))
-        case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"${" ".repeat(4)}${tpe.name}"))
+        case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"${" ".repeat(4)}${tpe.qName.qualifiedName}"))
       
     }
   }

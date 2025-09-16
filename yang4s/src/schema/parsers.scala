@@ -9,8 +9,11 @@ import cats.data.EitherT
 import cats.implicits.{*, given}
 import cats.parse.Parser
 import cats.Applicative
+import yang4s.schema.parsers.ErrorOr
+import java.net.URI
+import scala.util.Try
 
-opaque type Scope = List[SchemaType]
+type Scope = List[SchemaType]
 object Scope {
   def apply(schemaTypes: SchemaType*): Scope = List(schemaTypes*)
   def empty: Scope = Scope()
@@ -22,26 +25,46 @@ object Stack {
   def apply[A](scopes: A*) = List(scopes*)
   def empty[A]: Stack[A] = Stack()
 
-  extension[A] (stack: Stack[A]) {
+  extension [A](stack: Stack[A]) {
     def push(a: A): Stack[A] = a :: stack
     def pop(): Stack[A] = {
       stack match
         case _ :: next => next
-        case Nil => List.empty
+        case Nil       => List.empty
+    }
+    def head: Option[A] = stack.headOption
+
+    def modifyHead(fn: Option[A] => A): Stack[A] = {
+      pop().push(fn(stack.headOption))
     }
   }
 }
 
 case class ParsingCtx(
-    namespace: String,
+    namespace: Namespace,
     typeDefs: List[SchemaType],
     schemaCtx: SchemaContext,
-    imports: Map[String, SchemaModule],
+    imports: Map[String, Namespace],
     typeDefStack: Stack[Scope]
-)
+) {
+  def getNamespace(prefix: Option[String]): ErrorOr[Namespace] = {
+    prefix match
+      case Some(p) =>
+        for {
+          namespace1 <- imports
+            .lift(p)
+            .fold {
+              if (namespace.prefix == Some(p))
+                Right(namespace)
+              else Left(s"Unknown prefix $p")
+            }(Right(_))
+        } yield (namespace1)
+      case None => Right(namespace)
+  }
+}
 
 object ParsingCtx {
-  def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx("global", List.empty, ctx, Map.empty, Stack.empty)
+  def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx(Namespace.DEFAULT, List.empty, ctx, Map.empty, Stack.empty)
 }
 
 case class Import(module: String, prefix: String)
@@ -70,7 +93,9 @@ object parsers {
 
   def withTypeDefScope[A](body: ParserResult[A]): ParserResult[A] = {
     for {
-      _ <- ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.push(Scope.empty)))
+      _ <- ParserResult.modify(ctx =>
+        ctx.copy(typeDefStack = ctx.typeDefStack.push(ctx.typeDefStack.head.getOrElse(Scope.empty)))
+      )
       a <- body
       _ <- ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.pop()))
     } yield (a)
@@ -95,27 +120,32 @@ object parsers {
     ParserResult.modifyF { ctx =>
       for {
         (schemaCtx, modules) <- ctx.schemaCtx.loadModules(moduleNames)
-      } yield  {
+      } yield {
+
+        val scope = ctx.typeDefStack.head.getOrElse(List.empty)
+        val stack = ctx.typeDefStack.pop()
+        println(modules)
 
         ctx.copy(
           schemaCtx = schemaCtx,
-          imports = imports.map(_.prefix).zip(modules).toMap
+          imports = imports.map(_.prefix).zip(modules).map((p, m) => (p, m.namespace.copy(prefix = Some(p)))).toMap,
+          typeDefStack = stack.push(scope ++ modules.flatMap(_.typeDefs))
         )
       }
-      
     }
   }
 
-  def namespaceParser(stmt: Statement): ParserResult[String] =
-    parseString(stmt).flatTap(ns => ParserResult.modify(_.copy(namespace = ns)))
+  def namespaceParser(stmt: Statement): ParserResult[Namespace] =
+    parseURI(stmt).map(Namespace(_, None)).flatTap(ns => ParserResult.modify(_.copy(namespace = ns)))
 
-  def prefixParser(stmt: Statement): ParserResult[String] = parseString(stmt)
+  def prefixParser(stmt: Statement): ParserResult[String] =
+    parseString(stmt).flatTap(p => ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p)))))
 
   def containerParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
     for {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
-    } yield (ContainerNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs))
+    } yield (ContainerNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs))
   }
 
   def listParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
@@ -123,7 +153,7 @@ object parsers {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
       key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (ListNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs, key))
+    } yield (ListNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, key))
   }
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
@@ -133,44 +163,38 @@ object parsers {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
       tpe <- typeParser(v.required(Keyword.Type))
-    } yield (LeafNode(SchemaMeta(stmt.arg.get, ctx.namespace, None), dataDefs, tpe))
+    } yield (LeafNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, tpe))
   }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
-    val (prefix, tpe): (Option[String], String) = stmt.arg.get.split(":", 2) match
-      case Array(prefix, tpe) => (Some(prefix), tpe)
-      case _                  => (None, stmt.arg.get)
+    def getType(ctx: ParsingCtx, qName: QName): ErrorOr[SchemaType] = {
+      val fromBuiltIn = BuiltInType.fromLiteral(qName.localName).map(SchemaType.fromBuiltIn(_))
+      val fromScope = ctx.typeDefStack.head.flatMap(_.find(_.qName == qName))
 
-    def getType(ctx: ParsingCtx, tpe: String, prefix: Option[String]): ErrorOr[SchemaType] = {
-      val name = prefix.map(p => s"$p:$tpe").getOrElse(tpe)
-
-      val fromImport = for {
-        p <- prefix
-        imported <- ctx.imports.get(p)
-        td <- imported.typeDefs.find(_.name == tpe)
-      } yield td.copy(name = name)
-
-      val fromBuiltInOrCtx = {
-        BuiltInType
-          .fromLiteral(stmt.arg.get)
-          .orElse(ctx.typeDefs.find(_.name == stmt.arg.get).map(_.tpe))
-          .map(b => SchemaType(tpe, b))
-      }
-
-      (fromImport orElse fromBuiltInOrCtx).toRight(s"Unknown type ${name}")
+      // Todo: Show instance for qname
+      (fromBuiltIn orElse fromScope).toRight(s"Unknown type ${qName} ${ctx.typeDefStack.head}")
     }
 
-    StateT.inspectF(getType(_, tpe, prefix))
+    for {
+      qName <- qNameFromStmt(stmt)
+      schemaType <- StateT.inspectF(getType(_, qName))
+    } yield (schemaType)
   }
 
   def typeDefParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
     for {
       baseType <- typeParser(v.required(Keyword.Type))
-    } yield (baseType.copy(name = stmt.arg.get))
+      qName <- qNameFromStmt(stmt)
+    } yield (baseType.copy(qName = qName))
   }
 
   def typeDefsParser(v: ValidStatements): ParserResult[List[SchemaType]] =
-    v.many0(Keyword.TypeDef).map(typeDefParser).sequence.flatTap(typeDefs => ParserResult.modify(_.copy(typeDefs = typeDefs)))
+    v.many0(Keyword.TypeDef)
+      .map(typeDefParser)
+      .sequence
+      .flatTap(typeDefs =>
+        ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.modifyHead(_.getOrElse(List.empty) ++ typeDefs)))
+      )
 
   def importParser(stmt: Statement): ParserResult[Import] = ParserResult.fromValidated(stmt) { v =>
     for {
@@ -193,5 +217,19 @@ object parsers {
     }.sequence
   }
 
+  def qNameFromStmt(stmt: Statement): ParserResult[QName] = {
+    val (prefix, identifier): (Option[String], String) = stmt.arg.get.split(":", 2) match
+      case Array(prefix, tpe) => (Some(prefix), tpe)
+      case _                  => (None, stmt.arg.get)
+
+    for {
+      ctx <- StateT.get
+      namespace <- ParserResult.fromEither(ctx.getNamespace(prefix))
+    } yield (QName(namespace, identifier))
+  }
+
   def parseString(stmt: Statement): ParserResult[String] = ParserResult.validate(stmt).as(stmt.arg.get)
+  def parseURI(stmt: Statement): ParserResult[URI] = ParserResult.validate(stmt).flatMap { _ =>
+    ParserResult.fromEither(Try(URI(stmt.arg.get)).toOption.toRight(s"${stmt.arg.get} is not a valid namespace."))
+  }
 }

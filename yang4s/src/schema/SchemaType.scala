@@ -1,15 +1,9 @@
 package yang4s.schema
 
-enum BuiltInType(val literal: String) {
-  case StringType extends BuiltInType("string")
-}
+case class SchemaType(qName: QName, tpe: BuiltInType)
 
-object BuiltInType {
-  def fromLiteral(literal: String): Option[BuiltInType] = {
-    BuiltInType.values.find(_.literal == literal)
+object SchemaType {
+  def fromBuiltIn(builtIn: BuiltInType) = {
+    SchemaType(QName.defaultNamespace(builtIn.literal), builtIn)
   }
-
-  def isBuiltin(literal: String): Boolean = fromLiteral(literal).fold(false)(_ => true)
 }
-
-case class SchemaType(name: String, tpe: BuiltInType)
