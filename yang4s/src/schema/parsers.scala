@@ -10,12 +10,40 @@ import cats.implicits.{*, given}
 import cats.parse.Parser
 import cats.Applicative
 
+opaque type Scope = List[SchemaType]
+object Scope {
+  def apply(schemaTypes: SchemaType*): Scope = List(schemaTypes*)
+  def empty: Scope = Scope()
+}
+
+opaque type Stack[A] = List[A]
+
+object Stack {
+  def apply[A](scopes: A*) = List(scopes*)
+  def empty[A]: Stack[A] = Stack()
+
+  extension[A] (stack: Stack[A]) {
+    def push(a: A): Stack[A] = a :: stack
+    def pop(): Stack[A] = {
+      stack match
+        case _ :: next => next
+        case Nil => List.empty
+    }
+  }
+}
+
 case class ParsingCtx(
     namespace: String,
     typeDefs: List[SchemaType],
     schemaCtx: SchemaContext,
-    imports: Map[String, SchemaModule]
+    imports: Map[String, SchemaModule],
+    typeDefStack: Stack[Scope]
 )
+
+object ParsingCtx {
+  def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx("global", List.empty, ctx, Map.empty, Stack.empty)
+}
+
 case class Import(module: String, prefix: String)
 
 object parsers {
@@ -37,6 +65,15 @@ object parsers {
     }
 
     def validate(stmt: Statement): ParserResult[ValidStatements] = fromValidated(stmt)(success)
+
+  }
+
+  def withTypeDefScope[A](body: ParserResult[A]): ParserResult[A] = {
+    for {
+      _ <- ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.push(Scope.empty)))
+      a <- body
+      _ <- ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.pop()))
+    } yield (a)
   }
 
   def moduleParser: PartialFunction[Statement, ParserResult[Module]] = {

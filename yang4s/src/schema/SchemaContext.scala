@@ -30,7 +30,7 @@ case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) 
         .map { p =>
           Using(Source.fromFile(p.toFile)) { source =>
             StatementParser().parse(source.mkString).flatMap { stmt =>
-              parsers.moduleParser(stmt).run(ParsingCtx("global", List.empty, this, Map.empty))
+              parsers.moduleParser(stmt).run(ParsingCtx.fromSchemaCtx(this))
             }
           } match
             case Failure(exception) => Left(exception.toString())
