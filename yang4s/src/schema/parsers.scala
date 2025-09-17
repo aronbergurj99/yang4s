@@ -98,7 +98,7 @@ object parsers {
             ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p))))
           )
           imports <- importsParser(v)
-          _ <- typeDefsParser(v)
+          _ <- resolveTypeDefs(v)
           dataDefs <- dataDefParser(v)
           typeDefs <- ParserResult.inspect(_.typeDefStack.peak.resolved)
         } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
@@ -166,41 +166,39 @@ object parsers {
       (fromBuiltIn orElse fromScope).toRight(s"Unknown type ${qName} ${ctx.typeDefStack.peak}")
     }
 
-    def resolve(qName: QName): ParserResult[Unit] = {
-      for {
-        scope <- ParserResult.inspect(_.typeDefStack.peak)
-        _ <- scope.unresolved.get(qName).map(typeDefParser(_)).sequence
-        _ <- ParserResult.modify(ctx =>
-          ctx.copy(typeDefStack = ctx.typeDefStack.withModifiedHead { scope =>
-            scope.copy(unresolved = scope.unresolved.removed(qName))
-          })
-        )
-      } yield ()
-    }
 
     for {
       qName <- qNameFromStmt(stmt)
-      _ <- resolve(qName)
+      _ <- resolveTypeDef(qName)
       schemaType <- StateT.inspectF(getType(_, qName))
     } yield (schemaType)
   }
 
   def typeDefParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
-    val result = for {
+    for {
       schemaType <- typeParser(v.required(Keyword.Type))
       qName <- qNameFromStmt(stmt)
     } yield (schemaType.copy(qName = qName))
-    
-    result.flatTap(st =>
-      ParserResult.modify(ctx =>
-        ctx.copy(typeDefStack = ctx.typeDefStack.withModifiedHead { scope =>
-          scope.mergeTypeDefs(st)
-        })
-      )
-    )
   }
 
-  def typeDefsParser(v: ValidStatements): ParserResult[Unit] = {
+  def resolveTypeDef(qName: QName): ParserResult[Unit] = {
+    for {
+      scope <- ParserResult.inspect(_.typeDefStack.peak)
+      _ <- scope.unresolved.get(qName).map { stmt =>
+            typeDefParser(stmt).flatMap { st =>
+              ParserResult.modify { ctx =>
+                  ctx.copy(
+                    typeDefStack = ctx.typeDefStack.withModifiedHead { scope =>
+                        scope.mergeTypeDefs(st).copy(unresolved = scope.unresolved.removed(qName))
+                      }
+                  )
+                }
+              }
+          }.sequence
+    } yield ()
+  }
+
+  def resolveTypeDefs(v: ValidStatements): ParserResult[Unit] = {
     v
       .many0(Keyword.TypeDef)
       .map(stmt => qNameFromStmt(stmt).map((_, stmt)))
@@ -212,8 +210,7 @@ object parsers {
           })
         )
       }
-      .map(_.map(_._2))
-      .flatMap(stmts => stmts.map(typeDefParser).sequence)
+      .flatMap(_.map(t => resolveTypeDef(t.head)).sequence)
       .as(())
   }
 

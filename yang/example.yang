@@ -10,12 +10,15 @@ module example {
     //     prefix yang;
     // }
 
+    typedef third {
+        type string;
+    }
 
     typedef hostname {
         type another;
     }
     typedef another {
-        type string;
+        type third;
     }
 
     container interfaces {
