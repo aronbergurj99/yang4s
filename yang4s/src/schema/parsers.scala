@@ -13,10 +13,11 @@ import yang4s.schema.parsers.ErrorOr
 import java.net.URI
 import scala.util.Try
 
-type Scope = List[SchemaType]
-object Scope {
-  def apply(schemaTypes: SchemaType*): Scope = List(schemaTypes*)
-  def empty: Scope = Scope()
+case class TypeDefScope(unresolved: Map[QName, Statement], resolved: List[SchemaType])
+
+object TypeDefScope {
+  def apply(schemaTypes: SchemaType*): TypeDefScope = TypeDefScope.empty.copy(resolved = List(schemaTypes*))
+  def empty: TypeDefScope = TypeDefScope(Map.empty, List.empty)
 }
 
 opaque type Stack[A] = List[A]
@@ -45,7 +46,7 @@ case class ParsingCtx(
     typeDefs: List[SchemaType],
     schemaCtx: SchemaContext,
     imports: Map[String, Namespace],
-    typeDefStack: Stack[Scope]
+    typeDefStack: Stack[TypeDefScope]
 ) {
   def getNamespace(prefix: Option[String]): ErrorOr[Namespace] = {
     prefix match
@@ -94,7 +95,7 @@ object parsers {
   def withTypeDefScope[A](body: ParserResult[A]): ParserResult[A] = {
     for {
       _ <- ParserResult.modify(ctx =>
-        ctx.copy(typeDefStack = ctx.typeDefStack.push(ctx.typeDefStack.head.getOrElse(Scope.empty)))
+        ctx.copy(typeDefStack = ctx.typeDefStack.push(ctx.typeDefStack.head.getOrElse(TypeDefScope.empty)))
       )
       a <- body
       _ <- ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.pop()))
@@ -106,10 +107,13 @@ object parsers {
       ParserResult.fromValidated(stmt) { v =>
         for {
           namespace <- namespaceParser(v.required(Kw.Namespace))
-          prefix <- prefixParser(v.required(Kw.Prefix))
+          prefix <- prefixParser(v.required(Kw.Prefix)).flatTap(p =>
+            ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p))))
+          )
           imports <- importsParser(v)
-          typeDefs <- typeDefsParser(v)
+          _ <- typeDefsParser(v)
           dataDefs <- dataDefParser(v)
+          typeDefs <- ParserResult.inspect(_.typeDefStack.head.map(_.resolved).getOrElse(List.empty))
         } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
       }
   }
@@ -122,14 +126,14 @@ object parsers {
         (schemaCtx, modules) <- ctx.schemaCtx.loadModules(moduleNames)
       } yield {
 
-        val scope = ctx.typeDefStack.head.getOrElse(List.empty)
+        val scope = ctx.typeDefStack.head.getOrElse(TypeDefScope.empty)
         val stack = ctx.typeDefStack.pop()
         println(modules)
 
         ctx.copy(
           schemaCtx = schemaCtx,
           imports = imports.map(_.prefix).zip(modules).map((p, m) => (p, m.namespace.copy(prefix = Some(p)))).toMap,
-          typeDefStack = stack.push(scope ++ modules.flatMap(_.typeDefs))
+          typeDefStack = stack.push(scope.copy(resolved = scope.resolved ++ modules.flatMap(_.typeDefs)))
         )
       }
     }
@@ -139,7 +143,7 @@ object parsers {
     parseURI(stmt).map(Namespace(_, None)).flatTap(ns => ParserResult.modify(_.copy(namespace = ns)))
 
   def prefixParser(stmt: Statement): ParserResult[String] =
-    parseString(stmt).flatTap(p => ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p)))))
+    parseString(stmt)
 
   def containerParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
     for {
@@ -158,7 +162,7 @@ object parsers {
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
 
-  def LeafParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
+  def leafParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
     for {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
@@ -169,32 +173,61 @@ object parsers {
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
     def getType(ctx: ParsingCtx, qName: QName): ErrorOr[SchemaType] = {
       val fromBuiltIn = BuiltInType.fromLiteral(qName.localName).map(SchemaType.fromBuiltIn(_))
-      val fromScope = ctx.typeDefStack.head.flatMap(_.find(_.qName == qName))
+      val fromScope = ctx.typeDefStack.head.flatMap(_.resolved.find(_.qName == qName))
 
       // Todo: Show instance for qname
       (fromBuiltIn orElse fromScope).toRight(s"Unknown type ${qName} ${ctx.typeDefStack.head}")
     }
 
+    def resolve(qName: QName): ParserResult[Unit] = {
+      for {
+        scope <- ParserResult.inspect(_.typeDefStack.head.getOrElse(TypeDefScope.empty))
+        _ <- scope.unresolved.lift(qName).map(typeDefParser(_)).sequence
+        _ <- ParserResult.modify(ctx =>
+          ctx.copy(typeDefStack = ctx.typeDefStack.modifyHead { maybeScope =>
+            maybeScope.map(s => s.copy(unresolved = s.unresolved.removed(qName))).getOrElse(TypeDefScope.empty)
+          })
+        )
+      } yield ()
+    }
+
     for {
       qName <- qNameFromStmt(stmt)
+      _ <- resolve(qName)
       schemaType <- StateT.inspectF(getType(_, qName))
     } yield (schemaType)
   }
 
   def typeDefParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
-    for {
-      baseType <- typeParser(v.required(Keyword.Type))
+    val result = for {
+      schemaType <- typeParser(v.required(Keyword.Type))
       qName <- qNameFromStmt(stmt)
-    } yield (baseType.copy(qName = qName))
+    } yield (schemaType.copy(qName = qName))
+    result.flatTap(st =>
+      ParserResult.modify(ctx =>
+        ctx.copy(typeDefStack = ctx.typeDefStack.modifyHead { maybeScope =>
+          maybeScope.map(s => s.copy(resolved = st :: s.resolved)).getOrElse(TypeDefScope.empty)
+        })
+      )
+    )
   }
 
-  def typeDefsParser(v: ValidStatements): ParserResult[List[SchemaType]] =
-    v.many0(Keyword.TypeDef)
-      .map(typeDefParser)
+  def typeDefsParser(v: ValidStatements): ParserResult[Unit] = {
+    v
+      .many0(Keyword.TypeDef)
+      .map(stmt => qNameFromStmt(stmt).map((_, stmt)))
       .sequence
-      .flatTap(typeDefs =>
-        ParserResult.modify(ctx => ctx.copy(typeDefStack = ctx.typeDefStack.modifyHead(_.getOrElse(List.empty) ++ typeDefs)))
-      )
+      .flatTap { unresolved =>
+        ParserResult.modify(ctx =>
+          ctx.copy(typeDefStack = ctx.typeDefStack.modifyHead { maybeScope =>
+            maybeScope.map(s => s.copy(unresolved = s.unresolved ++ unresolved.toMap)).getOrElse(TypeDefScope.empty)
+          })
+        )
+      }
+      .map(_.map(_._2))
+      .flatMap(stmts => stmts.map(typeDefParser).sequence)
+      .as(())
+  }
 
   def importParser(stmt: Statement): ParserResult[Import] = ParserResult.fromValidated(stmt) { v =>
     for {
@@ -211,7 +244,7 @@ object parsers {
     Seq(
       (Keyword.Container, containerParser),
       (Keyword.List, listParser),
-      (Keyword.Leaf, LeafParser)
+      (Keyword.Leaf, leafParser)
     ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
       acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
     }.sequence
