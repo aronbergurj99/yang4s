@@ -8,6 +8,7 @@ object yang4s extends ScalaModule {
 
   def mvnDeps = Seq(
     mvn"org.typelevel::cats-core:2.13.0",
+    mvn"org.typelevel::alleycats-core:2.13.0",
     mvn"org.typelevel::cats-parse:1.0.0",
   )
 
