@@ -128,7 +128,6 @@ object parsers {
 
         val scope = ctx.typeDefStack.head.getOrElse(TypeDefScope.empty)
         val stack = ctx.typeDefStack.pop()
-        println(modules)
 
         ctx.copy(
           schemaCtx = schemaCtx,
