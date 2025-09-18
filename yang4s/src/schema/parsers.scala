@@ -15,53 +15,57 @@ import java.net.URI
 import scala.util.Try
 import yang4s.utils.Stack
 
-case class TypeDefScope(unresolved: Map[QName, Statement], resolved: List[SchemaType])
-
-object TypeDefScope {
-  def apply(schemaTypes: SchemaType*): TypeDefScope = TypeDefScope.empty.copy(resolved = List(schemaTypes*))
-  def empty: TypeDefScope = TypeDefScope(Map.empty, List.empty)
-
-  given Empty[TypeDefScope]:
-    def empty: TypeDefScope = TypeDefScope.empty
-
-  extension (self: TypeDefScope) {
-    def mergeTypeDefs(sts: SchemaType*) = self.copy(resolved = self.resolved ++ sts)
-    def mergeUnresolved(unresolved: Tuple2[QName, Statement]*) =
-      self.copy(unresolved = self.unresolved ++ unresolved.toMap)
-  }
-}
 
 
-case class ParsingCtx(
-    namespace: Namespace,
-    typeDefs: List[SchemaType],
-    schemaCtx: SchemaContext,
-    imports: Map[String, Namespace],
-    typeDefStack: Stack[TypeDefScope]
-) 
 
-object ParsingCtx {
-  def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx(Namespace.DEFAULT, List.empty, ctx, Map.empty, Stack.empty)
 
-  extension (self: ParsingCtx) {
-    def getNamespace(maybePrefix: Option[String]): ErrorOr[Namespace] = {
-      maybePrefix match
-        case Some(p) =>
-          self.imports
-            .get(p)
-            .orElse(self.namespace.prefix.filter(_ == p).map(_ => self.namespace))
-            .toRight(s"Unknown prefix $p")
-        case None => Right(self.namespace)
-    }
-  }
-}
-
-case class Import(module: String, prefix: String)
 
 object parsers {
   type Error = String
   type ErrorOr[A] = Either[Error, A]
   type ParserResult[A] = StateT[ErrorOr, ParsingCtx, A]
+
+  case class TypeDefScope(unresolved: Map[QName, Statement], resolved: List[SchemaType])
+
+  object TypeDefScope {
+    def apply(schemaTypes: SchemaType*): TypeDefScope = TypeDefScope.empty.copy(resolved = List(schemaTypes*))
+    def empty: TypeDefScope = TypeDefScope(Map.empty, List.empty)
+
+    given Empty[TypeDefScope]:
+      def empty: TypeDefScope = TypeDefScope.empty
+
+    extension (self: TypeDefScope) {
+      def mergeTypeDefs(sts: SchemaType*) = self.copy(resolved = self.resolved ++ sts)
+      def mergeUnresolved(unresolved: Tuple2[QName, Statement]*) =
+        self.copy(unresolved = self.unresolved ++ unresolved.toMap)
+    }
+  }
+
+  case class ParsingCtx(
+      namespace: Namespace,
+      typeDefs: List[SchemaType],
+      schemaCtx: SchemaContext,
+      imports: Map[String, Namespace],
+      typeDefStack: Stack[TypeDefScope]
+  ) 
+
+  object ParsingCtx {
+    def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx(Namespace.DEFAULT, List.empty, ctx, Map.empty, Stack.empty)
+
+    extension (self: ParsingCtx) {
+      def getNamespace(maybePrefix: Option[String]): ErrorOr[Namespace] = {
+        maybePrefix match
+          case Some(p) =>
+            self.imports
+              .get(p)
+              .orElse(self.namespace.prefix.filter(_ == p).map(_ => self.namespace))
+              .toRight(s"Unknown prefix $p")
+          case None => Right(self.namespace)
+      }
+    }
+  }
+
+  case class Import(module: String, prefix: String)
 
   object ParserResult {
     def fromEither[A](v: ErrorOr[A]): ParserResult[A] = StateT.liftF(v)
