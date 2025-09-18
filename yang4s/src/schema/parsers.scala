@@ -163,7 +163,7 @@ object parsers {
       val fromScope = ctx.typeDefStack.peak.resolved.find(_.qName == qName)
 
       // Todo: Show instance for qname
-      (fromBuiltIn orElse fromScope).toRight(s"Unknown type ${qName} ${ctx.typeDefStack.peak}")
+      (fromBuiltIn orElse fromScope).toRight(s"Unknown type ${qName}")
     }
 
 

@@ -94,12 +94,15 @@ object Grammar {
     Keyword.Type -> (ValidateArgument.identity, Map(
       Keyword.Length -> Grammar(optional),
       Keyword.Pattern -> Grammar(optional),
+      Keyword.Units -> Grammar(optional),
     )),
     Keyword.Key -> (ValidateArgument.identity, Map()),
     Keyword.TypeDef -> (ValidateArgument.identity, Map(
       Keyword.Type -> Grammar(required),
       Keyword.Description -> Grammar(optional),
       Keyword.Reference -> Grammar(optional),
+      Keyword.Units -> Grammar(optional),
+      Keyword.Default -> Grammar(optional),
     )),
     Keyword.Namespace -> (ValidateArgument.identity, Map()),
     Keyword.Prefix -> (ValidateArgument.identity, Map()),
@@ -114,6 +117,8 @@ object Grammar {
     Keyword.Reference -> (ValidateArgument.identity, Map()),
     Keyword.Length -> (ValidateArgument.identity, Map()),
     Keyword.Pattern -> (ValidateArgument.identity, Map()),
+    Keyword.Units -> (ValidateArgument.identity, Map()),
+    Keyword.Default -> (ValidateArgument.identity, Map()),
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {

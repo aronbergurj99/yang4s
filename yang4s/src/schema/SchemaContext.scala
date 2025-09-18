@@ -50,7 +50,7 @@ case class SchemaContext(searchPaths: Seq[String], modules: List[SchemaModule]) 
             case Left(e) => Left(e)
             case Right(value)   => loop(next, value._1, value._2 :: acc)
         }
-        case Nil => Right((ctx,acc))
+        case Nil => Right((ctx,acc.reverse))
     }
     loop(moduleNames, this, List.empty)
   }
