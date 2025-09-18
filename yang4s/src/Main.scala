@@ -7,7 +7,7 @@ import yang4s.utils.TreeDiagram.{*, given}
 object Main {
   def main(args: Array[String]) = {
     val result = for {
-      (ctx, _) <- SchemaContext.empty(Seq("yang")).loadModule(ModuleName("example"))
+      (ctx, _) <- SchemaContext.empty(Seq("yang")).loadModule(ModuleName("ietf-interfaces"))
     } yield (printTreeDiagram(ctx))
 
     println(result.merge)

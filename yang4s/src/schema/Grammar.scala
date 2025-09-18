@@ -65,6 +65,7 @@ object Grammar {
     Keyword.Module -> (ValidateArgument.identity, Map(
       Keyword.Namespace -> Grammar(required),
       Keyword.Prefix -> Grammar(required),
+      Keyword.YangVersion -> Grammar(optional),
       Keyword.Organization -> Grammar(optional),
       Keyword.Description -> Grammar(optional),
       Keyword.Revision -> Grammar(many0()),
@@ -72,29 +73,50 @@ object Grammar {
       Keyword.Import -> Grammar(many0()),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.TypeDef -> Grammar(many0())
+      Keyword.TypeDef -> Grammar(many0()),
+      Keyword.Identity -> Grammar(many0()),
+      Keyword.Feature -> Grammar(many0()),
     )),
     Keyword.Container -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0())
+      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Config -> Grammar(optional),
+      Keyword.Status -> Grammar(optional),
+      Keyword.Description -> Grammar(optional),
     )),
     Keyword.List -> (ValidateArgument.identity, Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
       Keyword.Leaf -> Grammar(many0()),
-      Keyword.Key -> Grammar(optional)
+      Keyword.LeafList -> Grammar(many0()),
+      Keyword.Key -> Grammar(optional),
+      Keyword.Config -> Grammar(optional),
+      Keyword.Status -> Grammar(optional),
+      Keyword.Description -> Grammar(optional),
     )),
     Keyword.Leaf -> (ValidateArgument.identity, Map(
       Keyword.Type -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
-      Keyword.Leaf -> Grammar(many0())
+      Keyword.Leaf -> Grammar(many0()),
+      Keyword.Config -> Grammar(optional),
+      Keyword.Status -> Grammar(optional),
+      Keyword.Description -> Grammar(optional),
+      Keyword.Reference -> Grammar(optional),
+      Keyword.Mandatory -> Grammar(optional),
+      Keyword.Units -> Grammar(optional),
+      Keyword.IfFeature -> Grammar(optional),
+      Keyword.Default -> Grammar(optional),
     )),
     Keyword.Type -> (ValidateArgument.identity, Map(
       Keyword.Length -> Grammar(optional),
       Keyword.Pattern -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
+      Keyword.Path -> Grammar(optional),
+      Keyword.Range -> Grammar(optional),
+      Keyword.Enum -> Grammar(optional),
+      Keyword.Base -> Grammar(optional),
     )),
     Keyword.Key -> (ValidateArgument.identity, Map()),
     Keyword.TypeDef -> (ValidateArgument.identity, Map(
@@ -103,6 +125,7 @@ object Grammar {
       Keyword.Reference -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
       Keyword.Default -> Grammar(optional),
+      Keyword.Status -> Grammar(optional),
     )),
     Keyword.Namespace -> (ValidateArgument.identity, Map()),
     Keyword.Prefix -> (ValidateArgument.identity, Map()),
@@ -119,6 +142,13 @@ object Grammar {
     Keyword.Pattern -> (ValidateArgument.identity, Map()),
     Keyword.Units -> (ValidateArgument.identity, Map()),
     Keyword.Default -> (ValidateArgument.identity, Map()),
+    //Todo: validate yang version arg
+    Keyword.YangVersion -> (ValidateArgument.identity, Map()),
+    Keyword.Identity -> (ValidateArgument.identity, Map()),
+    Keyword.Feature -> (ValidateArgument.identity, Map()),
+    Keyword.Status -> (ValidateArgument.identity, Map()),
+    Keyword.Path -> (ValidateArgument.identity, Map()),
+    Keyword.Config -> (ValidateArgument.identity, Map()),
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {

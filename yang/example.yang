@@ -36,6 +36,9 @@ module example {
             leaf hostname {
                 type hostname;
             }
+            leaf time {
+                type yang:timestamp;
+            }
             container third;
         }
     }

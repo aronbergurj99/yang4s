@@ -21,6 +21,17 @@ enum Keyword(val literal: String) {
   case Units extends Keyword("units")
   case Status extends Keyword("status")
   case Length extends Keyword("length")
+  case YangVersion extends Keyword("yang-version")
+  case Identity extends Keyword("identity")
+  case Feature extends Keyword("feature")
+  case Path extends Keyword("path")
+  case Config extends Keyword("config")
+  case LeafList extends Keyword("leaf-list")
+  case Mandatory extends Keyword("mandatory")
+  case IfFeature extends Keyword("if-feature")
+  case Range extends Keyword("range")
+  case Enum extends Keyword("enum")
+  case Base extends Keyword("base")
 }
 
 object Keyword {
