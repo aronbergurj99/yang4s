@@ -3,6 +3,7 @@ package yang4s.schema
 import yang4s.parser.Statement
 
 import yang4s.schema.{Keyword => Kw}
+import yang4s.schema.SchemaNode.*
 import cats.data.State
 import cats.data.StateT
 import cats.data.EitherT
@@ -14,10 +15,6 @@ import yang4s.schema.parsers.ErrorOr
 import java.net.URI
 import scala.util.Try
 import yang4s.utils.Stack
-
-
-
-
 
 
 object parsers {
@@ -136,29 +133,29 @@ object parsers {
   def prefixParser(stmt: Statement): ParserResult[String] =
     parseString(stmt)
 
-  def containerParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
+  def containerParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
-    } yield (ContainerNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs))
+    } yield (containerNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs))
   }
 
-  def listParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
+  def listParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
       key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (ListNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, key))
+    } yield (listNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, key))
   }
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
 
-  def leafParser(stmt: Statement): ParserResult[SchemaNode] = ParserResult.fromValidated(stmt) { v =>
+  def leafParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
       ctx <- StateT.get
       dataDefs <- dataDefParser(v)
       tpe <- typeParser(v.required(Keyword.Type))
-    } yield (LeafNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, tpe))
+    } yield (leafNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), tpe))
   }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
@@ -228,13 +225,13 @@ object parsers {
     v.many0(Keyword.Import).map(importParser).sequence.flatTap(resolveImports)
   }
 
-  def dataDefParser(vStmts: ValidStatements): ParserResult[List[SchemaNode]] = {
+  def dataDefParser(vStmts: ValidStatements): ParserResult[List[DataNode]] = {
     // Todo: We should maintain order based on definition in source file.
     Seq(
       (Keyword.Container, containerParser),
       (Keyword.List, listParser),
       (Keyword.Leaf, leafParser)
-    ).foldLeft[List[ParserResult[SchemaNode]]](List.empty) { case (acc, (kw, fn)) =>
+    ).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, fn)) =>
       acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
     }.sequence
   }

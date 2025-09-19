@@ -1,20 +1,40 @@
 package yang4s.schema
 
+import yang4s.schema.SchemaNodeKind.LeafNode
+import yang4s.schema.SchemaNodeKind.ListNode
+
 case class SchemaMeta(
     qName: QName,
     description: Option[String]
 )
 
+sealed trait SchemaNodeKind
+
+object SchemaNodeKind {
+  type DataDefiningKind = ListNode | ContainerNode.type
+  type TerminalKind = LeafNode
+
+  case object ContainerNode extends SchemaNodeKind
+  case class ListNode(key: Option[String]) extends SchemaNodeKind
+  case class LeafNode(tpe: SchemaType) extends SchemaNodeKind
+}
+
 sealed trait SchemaNode {
   def meta: SchemaMeta
-  def dataDefs: List[SchemaNode]
 
   def name = meta.qName.localName
   def namespace = meta.qName.namespace
   def description = meta.description
 }
 
-case class ContainerNode(meta: SchemaMeta, dataDefs: List[SchemaNode]) extends SchemaNode
-case class ListNode(meta: SchemaMeta, dataDefs: List[SchemaNode], key: Option[String]) extends SchemaNode
+object SchemaNode {
+  import SchemaNodeKind.*
+  type DataNode = TerminalNode | DataDefiningNode
+  case class TerminalNode(meta: SchemaMeta, kind: TerminalKind) extends SchemaNode
+  case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind)
+      extends SchemaNode
 
-case class LeafNode(meta: SchemaMeta, dataDefs: List[SchemaNode], tpe: SchemaType) extends SchemaNode
+  def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
+  def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String]) = DataDefiningNode(meta, dataDefs, ListNode(key))
+  def leafNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, LeafNode(tpe))
+}
