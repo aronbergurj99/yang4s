@@ -9,6 +9,7 @@ import yang4s.schema.ListNode
 import yang4s.schema.LeafNode
 import yang4s.schema.SchemaMeta
 import yang4s.schema.{Module => SModule}
+import yang4s.schema.BuiltInType
 
 // https://datatracker.ietf.org/doc/html/rfc8340
 
@@ -27,8 +28,16 @@ object TreeDiagram {
       case ListNode(meta, dataDefs, key) => printRow(meta, dataDefs, opts = "*", suffix = key.map(k => s"[$k]"))
       case LeafNode(meta, dataDefs, tpe) => {
         val gap = colLength - meta.qName.localName.length
+        val typeName = {
+          val qName = tpe.qName
+          val isBuiltin = BuiltInType.isBuiltin(qName.localName)
+          if (isBuiltin || qName.namespace == mod.namespace) {
+            qName.localName
+          } else
+            qName.qualifiedName
+        }
 
-        printRow(meta, dataDefs, suffix = Some(s"${" ".repeat(gap + 4)}${tpe.qName.qualifiedName}"))
+        printRow(meta, dataDefs, suffix = Some(s"${" ".repeat(gap + 4)}${typeName}"))
       }
   }
 
