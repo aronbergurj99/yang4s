@@ -57,7 +57,7 @@ object TreeDiagram {
     val implementedModules = modules
       .filter { mod =>
         mod match
-          case _: SModule => true
+          case m: SModule => m.isImplemented
           case _          => false
       }
       .asInstanceOf[Seq[SModule]]
