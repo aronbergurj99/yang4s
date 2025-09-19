@@ -8,7 +8,7 @@ object Main {
   def main(args: Array[String]) = {
     val result = for {
       (ctx, _) <- SchemaContext.empty(Seq("yang")).loadModule(ModuleName("ietf-interfaces"))
-    } yield (printTreeDiagram(ctx))
+    } yield (printModules(ctx.modules*))
 
     println(result.merge)
   }

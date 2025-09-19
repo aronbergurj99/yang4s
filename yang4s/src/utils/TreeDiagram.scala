@@ -8,56 +8,53 @@ import yang4s.schema.ContainerNode
 import yang4s.schema.ListNode
 import yang4s.schema.LeafNode
 import yang4s.schema.SchemaMeta
+import yang4s.schema.{Module => SModule}
 
 // https://datatracker.ietf.org/doc/html/rfc8340
 
-trait TreeDiagramPrintable[A] {
-  extension (a: A) def print(prefix: String, isLast: Boolean = false): String
-}
 object TreeDiagram {
-  def apply[A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[A] = ev
-
-  given TreeDiagramPrintable[SchemaContext] with {
-    extension (ctx: SchemaContext) def print(prefix: String, isLast: Boolean = false) = {
-      printAll(ctx.modules, "")
+  private def printDataDef(node: SchemaNode, mod: SModule, isLast: Boolean, prefix: String, colLength: Int): String = {
+    def printRow(meta: SchemaMeta, dataDefs: List[SchemaNode], opts: String = "", suffix: Option[String] = None): String = {
+      prefix ++ s"+--rw ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printDataDefs(
+        dataDefs,
+        mod,
+        prefix ++ { if (isLast) "   " else "|  " }
+      )
     }
-  }
 
-  given TreeDiagramPrintable[SchemaModule] with {
-    extension (ctx: SchemaModule) def print(prefix: String, isLast: Boolean = false) = {
-      def printModule(name: String, dataDefs: List[SchemaNode]): String = {
-        s"module: $name\n" ++ printAll(dataDefs, "  ")
+    node match
+      case ContainerNode(meta, dataDefs) => printRow(meta, dataDefs)
+      case ListNode(meta, dataDefs, key) => printRow(meta, dataDefs, opts = "*", suffix = key.map(k => s"[$k]"))
+      case LeafNode(meta, dataDefs, tpe) => {
+        val gap = colLength - meta.qName.localName.length
+
+        printRow(meta, dataDefs, suffix = Some(s"${" ".repeat(gap + 4)}${tpe.qName.qualifiedName}"))
       }
-      ctx match
-        case yang4s.schema.Module(name, _, _, dataDefs, _) => printModule(name, dataDefs)
-        case SubModule(name, _, _, dataDefs, _) => printModule(name, dataDefs)
-    }
   }
 
-  given TreeDiagramPrintable[SchemaNode] with {
-    extension (node: SchemaNode) def print(prefix: String, isLast: Boolean = false) = {
-      def printNode(meta: SchemaMeta, dataDefs: List[SchemaNode], opts: String = "", suffix: Option[String] = None): String = {
-        prefix ++ s"+--rw ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printAll(dataDefs, prefix ++ {if (isLast) "   " else "|  "} )
+  private def printDataDefs(nodes: List[SchemaNode], mod: SModule, prefix: String = ""): String = {
+    val longestName = nodes.map(_.meta.qName.localName).reduceOption { (a, b) => 
+        if (a.length >= b.length) a else b
+      }.map(_.length).getOrElse(0)
+    nodes.zipWithIndex
+      .map((d, idx) =>
+        val isLast = idx == nodes.length - 1
+        printDataDef(d, mod, isLast, prefix, longestName)
+      )
+      .mkString
+  }
+
+  def printModules(modules: SchemaModule*): String = {
+    val implementedModules = modules
+      .filter { mod =>
+        mod match
+          case _: SModule => true
+          case _          => false
       }
+      .asInstanceOf[Seq[SModule]]
 
-      node match
-        case ContainerNode(meta, dataDefs) => printNode(meta, dataDefs)
-        case ListNode(meta, dataDefs, key) => printNode(meta, dataDefs, opts="*", suffix= key.map(k => s"[$k]"))
-        case LeafNode(meta, dataDefs, tpe) => printNode(meta, dataDefs, suffix = Some(s"${" ".repeat(4)}${tpe.qName.qualifiedName}"))
-      
-    }
-  }
-
-  given [A](using ev: TreeDiagramPrintable[A]): TreeDiagramPrintable[List[A]] with {
-    extension (l: List[A]) def print(prefix: String, isLast: Boolean = false): String = printAll(l, prefix)
-  }
-
-  def printTreeDiagram[A: TreeDiagramPrintable](v: A): String = v.print("")
-
-
-  def printAll[A: TreeDiagramPrintable](vs: List[A], prefix: String): String = {
-    vs.zipWithIndex.map { (i, idx) =>
-        i.print(prefix, idx == vs.length - 1)
-      }.mkString
+    implementedModules.map { m =>
+      s"module: ${m.name}\n${{ printDataDefs(m.dataDefs, m) }}"
+    }.mkString
   }
 }
