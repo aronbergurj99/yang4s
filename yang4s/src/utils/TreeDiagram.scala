@@ -32,7 +32,11 @@ object TreeDiagram {
           } else
             qName.qualifiedName
         }
-        printRow(meta, List.empty, suffix = Some(s"${" ".repeat(gap + 4)}${typeName}"))
+        val indicator = kind match
+          case LeafNode => ""
+          case LeafList => "*"
+        
+        printRow(meta, List.empty, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName}"))
 
       }
       case DataDefiningNode(meta, dataDefs, kind) => {
