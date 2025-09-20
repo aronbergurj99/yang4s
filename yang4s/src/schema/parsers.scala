@@ -135,27 +135,27 @@ object parsers {
 
   def containerParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      ctx <- StateT.get
       dataDefs <- dataDefParser(v)
-    } yield (containerNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs))
+      schemaMeta <- schemaMetaParser(stmt)
+    } yield (containerNode(schemaMeta, dataDefs))
   }
 
   def listParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      ctx <- StateT.get
       dataDefs <- dataDefParser(v)
+      schemaMeta <- schemaMetaParser(stmt)
       key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (listNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), dataDefs, key))
+    } yield (listNode(schemaMeta, dataDefs, key))
   }
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
 
   def leafParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      ctx <- StateT.get
       dataDefs <- dataDefParser(v)
+      schemaMeta <- schemaMetaParser(stmt)
       tpe <- typeParser(v.required(Keyword.Type))
-    } yield (leafNode(SchemaMeta(QName(ctx.namespace, stmt.arg.get), None), tpe))
+    } yield (leafNode(schemaMeta, tpe))
   }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
@@ -234,6 +234,12 @@ object parsers {
     ).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, fn)) =>
       acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
     }.sequence
+  }
+
+  def schemaMetaParser(stmt: Statement): ParserResult[SchemaMeta] = {
+    for {
+      qName <- qNameFromStmt(stmt)
+    } yield (SchemaMeta(qName, None))
   }
 
   def qNameFromStmt(stmt: Statement): ParserResult[QName] = {
