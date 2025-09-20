@@ -22,20 +22,18 @@ object TreeDiagram {
       )
     }
     node match
-      case TerminalNode(meta, kind) => {
-        kind match
-          case LeafNode(tpe) => {
-            val gap = colLength - meta.qName.localName.length
-            val typeName = {
-              val qName = tpe.qName
-              val isBuiltin = BuiltInType.isBuiltin(qName.localName)
-              if (isBuiltin || qName.namespace == mod.namespace) {
-                qName.localName
-              } else
-                qName.qualifiedName
-            }
-            printRow(meta, List.empty, suffix = Some(s"${" ".repeat(gap + 4)}${typeName}"))
-          }
+      case TerminalNode(meta, tpe, kind) => {
+        val gap = colLength - meta.qName.localName.length
+        val typeName = {
+          val qName = tpe.qName
+          val isBuiltin = BuiltInType.isBuiltin(qName.localName)
+          if (isBuiltin || qName.namespace == mod.namespace) {
+            qName.localName
+          } else
+            qName.qualifiedName
+        }
+        printRow(meta, List.empty, suffix = Some(s"${" ".repeat(gap + 4)}${typeName}"))
+
       }
       case DataDefiningNode(meta, dataDefs, kind) => {
         kind match

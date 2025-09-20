@@ -158,6 +158,14 @@ object parsers {
     } yield (leafNode(schemaMeta, tpe))
   }
 
+  def leafListParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v => 
+      for {
+        dataDefs <- dataDefParser(v)
+        schemaMeta <- schemaMetaParser(stmt)
+        tpe <- typeParser(v.required(Keyword.Type))
+      } yield (leafListNode(schemaMeta, tpe))
+    }
+
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
     def getType(ctx: ParsingCtx, qName: QName): ErrorOr[SchemaType] = {
       val fromBuiltIn = BuiltInType.fromLiteral(qName.localName).map(SchemaType.fromBuiltIn(_))
@@ -230,7 +238,8 @@ object parsers {
     Seq(
       (Keyword.Container, containerParser),
       (Keyword.List, listParser),
-      (Keyword.Leaf, leafParser)
+      (Keyword.Leaf, leafParser),
+      (Keyword.LeafList, leafListParser)
     ).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, fn)) =>
       acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
     }.sequence
