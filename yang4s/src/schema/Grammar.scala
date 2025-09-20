@@ -14,12 +14,16 @@ enum Version(val literal: String) {
 type ValidationResult = Either[CardinalityError, ValidStatements]
 
 case class ValidStatements(
-    stmts: Map[Keyword, List[Statement]],
+    stmts: List[Tuple2[Keyword, Statement]],
     unknowns: List[Statement]
 ) {
-  def required(kw: Keyword): Statement = stmts(kw)(0)
-  def optional(kw: Keyword): Option[Statement] = stmts.lift(kw).flatMap(_.lift(0))
-  def many0(kw: Keyword): List[Statement] = stmts.lift(kw).getOrElse(List.empty)
+  def required(kw: Keyword): Statement = find(kw).get
+  def optional(kw: Keyword): Option[Statement] = find(kw)
+  def many0(kw: Keyword): List[Statement] = query(kw)
+
+  def filter(predicate: Keyword => Boolean): List[Tuple2[Keyword, Statement]] = stmts.filter(v => predicate(v._1))
+  def find(kw: Keyword): Option[Statement] = query(kw).lift(0)
+  def query(kw: Keyword): List[Statement] = filter(_ == kw).map(_._2)
 }
 
 case class Cardinality(min: Int, max: Option[Int]) {
@@ -179,8 +183,8 @@ object Grammar {
     for {
       _ <- v(stmt.arg)
       validStatements <- stmt.substatements
-        .foldM[Either[String, _], (Map[Keyword, List[Statement]], List[Statement], Int)](
-          (Map.empty, List.empty, 0)
+        .foldM[Either[String, _], (List[Tuple2[Keyword, Statement]], List[Statement], Int)](
+          (List.empty, List.empty, 0)
         ) { case ((m, unknowns, section), stmt1) =>
           stmt1 match
             // Unknown statemnet
@@ -191,7 +195,7 @@ object Grammar {
                 .fromLiteral(keyword).toRight(s"$keyword is not a valid keyword.")
                 .flatMap(kw => rules.lift(kw).map((_, kw)).toRight(s"${kw.literal} is not a valid substatement of ${stmt.keyword}"))
                 .map { (g, kw) =>
-                  (m.+((kw, stmt1 :: m.lift(kw).getOrElse(List.empty))), unknowns, g.section)
+                  ((kw, stmt1) :: m, unknowns, g.section)
                 }
         }
         .map(r => (r._1, r._2))

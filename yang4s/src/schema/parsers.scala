@@ -234,15 +234,16 @@ object parsers {
   }
 
   def dataDefParser(vStmts: ValidStatements): ParserResult[List[DataNode]] = {
-    // Todo: We should maintain order based on definition in source file.
-    Seq(
+    val kwParserMap = Seq(
       (Keyword.Container, containerParser),
       (Keyword.List, listParser),
       (Keyword.Leaf, leafParser),
       (Keyword.LeafList, leafListParser)
-    ).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, fn)) =>
-      acc.concat(vStmts.stmts.lift(kw).getOrElse(List.empty).map(fn))
-    }.sequence
+    ).toMap
+
+    vStmts.filter(kwParserMap.keySet.contains).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, stmt)) =>
+        kwParserMap(kw)(stmt) :: acc
+      }.sequence
   }
 
   def schemaMetaParser(stmt: Statement): ParserResult[SchemaMeta] = {
