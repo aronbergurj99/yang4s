@@ -135,19 +135,17 @@ object parsers {
 
   def containerParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      config1 <- configParser(v.optional(Keyword.Config), config)
-      dataDefs <- dataDefParser(v, config1)
-      schemaMeta <- schemaMetaParser(stmt)
-    } yield (containerNode(schemaMeta, dataDefs, config1))
+      schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
+      dataDefs <- dataDefParser(v, schemaMeta.config)
+    } yield (containerNode(schemaMeta, dataDefs))
   }
 
   def listParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      config1 <- configParser(v.optional(Keyword.Config), config)
-      dataDefs <- dataDefParser(v, config1)
-      schemaMeta <- schemaMetaParser(stmt)
+      schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
+      dataDefs <- dataDefParser(v, schemaMeta.config)
       key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (listNode(schemaMeta, dataDefs, key, config1))
+    } yield (listNode(schemaMeta, dataDefs, key))
   }
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
@@ -156,19 +154,17 @@ object parsers {
 
   def leafParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      schemaMeta <- schemaMetaParser(stmt)
+      schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
       tpe <- typeParser(v.required(Keyword.Type))
-      config1 <- configParser(v.optional(Keyword.Config), config)
-    } yield (leafNode(schemaMeta, tpe, config1))
+    } yield (leafNode(schemaMeta, tpe))
   }
 
   def leafListParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v => 
       for {
-        config1 <- configParser(v.optional(Keyword.Config), config)
-        dataDefs <- dataDefParser(v, config1)
-        schemaMeta <- schemaMetaParser(stmt)
+        schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
+        dataDefs <- dataDefParser(v, schemaMeta.config)
         tpe <- typeParser(v.required(Keyword.Type))
-      } yield (leafListNode(schemaMeta, tpe, config1))
+      } yield (leafListNode(schemaMeta, tpe))
     }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
@@ -254,7 +250,14 @@ object parsers {
   def schemaMetaParser(stmt: Statement): ParserResult[SchemaMeta] = {
     for {
       qName <- qNameFromStmt(stmt)
-    } yield (SchemaMeta(qName, None))
+    } yield (SchemaMeta(qName, None, false))
+  }
+
+  def dataNodeSchemaMetaParser(stmt: Statement, v: ValidStatements, config: Boolean): ParserResult[SchemaMeta] = {
+    for {
+      config1 <- configParser(v.optional(Keyword.Config), config)
+      meta <- schemaMetaParser(stmt)
+    } yield (meta.copy(config = config1))
   }
 
   def qNameFromStmt(stmt: Statement): ParserResult[QName] = {

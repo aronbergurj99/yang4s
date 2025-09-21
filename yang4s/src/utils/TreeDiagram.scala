@@ -14,7 +14,8 @@ import yang4s.schema.SchemaNodeKind.*
 
 object TreeDiagram {
   private def printDataDef(node: DataNode, mod: SModule, isLast: Boolean, prefix: String, colLength: Int): String = {
-    def printRow(meta: SchemaMeta, dataDefs: List[DataNode], flag: String, opts: String = "", suffix: Option[String] = None): String = {
+    def printRow(meta: SchemaMeta, dataDefs: List[DataNode], opts: String = "", suffix: Option[String] = None): String = {
+      val flag = if (meta.config) "rw" else "ro"
       prefix ++ s"+--$flag ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printDataDefs(
         dataDefs,
         mod,
@@ -23,8 +24,7 @@ object TreeDiagram {
     }
 
     node match
-      case TerminalNode(meta, tpe, kind, config) => {
-        val flag = if (config) "rw" else "ro"
+      case TerminalNode(meta, tpe, kind) => {
         val gap = colLength - meta.qName.localName.length
         val typeName = {
           val qName = tpe.qName
@@ -38,14 +38,13 @@ object TreeDiagram {
           case LeafNode => ""
           case LeafList => "*"
         
-        printRow(meta, List.empty, flag, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName}"))
+        printRow(meta, List.empty, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName}"))
 
       }
-      case DataDefiningNode(meta, dataDefs, kind, config) => {
-        val flag = if (config) "rw" else "ro"
+      case DataDefiningNode(meta, dataDefs, kind) => {
         kind match
-          case ContainerNode => printRow(meta, dataDefs, flag)
-          case ListNode(key) => printRow(meta, dataDefs, flag, opts = "*", suffix = key.map(k => s"[$k]"))
+          case ContainerNode => printRow(meta, dataDefs)
+          case ListNode(key) => printRow(meta, dataDefs, opts = "*", suffix = key.map(k => s"[$k]"))
       }
   }
 
