@@ -100,7 +100,7 @@ object parsers {
           )
           imports <- importsParser(v)
           _ <- resolveTypeDefs(v)
-          dataDefs <- dataDefParser(v)
+          dataDefs <- dataDefParser(v, true)
           typeDefs <- ParserResult.inspect(_.typeDefStack.peak.resolved)
         } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
       }
@@ -133,37 +133,42 @@ object parsers {
   def prefixParser(stmt: Statement): ParserResult[String] =
     parseString(stmt)
 
-  def containerParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
+  def containerParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      dataDefs <- dataDefParser(v)
+      config1 <- configParser(v.optional(Keyword.Config), config)
+      dataDefs <- dataDefParser(v, config1)
       schemaMeta <- schemaMetaParser(stmt)
-    } yield (containerNode(schemaMeta, dataDefs))
+    } yield (containerNode(schemaMeta, dataDefs, config1))
   }
 
-  def listParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
+  def listParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      dataDefs <- dataDefParser(v)
+      config1 <- configParser(v.optional(Keyword.Config), config)
+      dataDefs <- dataDefParser(v, config1)
       schemaMeta <- schemaMetaParser(stmt)
       key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (listNode(schemaMeta, dataDefs, key))
+    } yield (listNode(schemaMeta, dataDefs, key, config1))
   }
 
   def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
+  def configParser(stmt: Option[Statement], default: Boolean): ParserResult[Boolean] =
+    ParserResult.success(stmt).flatMap(_.map(parseBoolean).sequence).map(_.getOrElse(default))
 
-  def leafParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
+  def leafParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v =>
     for {
-      dataDefs <- dataDefParser(v)
       schemaMeta <- schemaMetaParser(stmt)
       tpe <- typeParser(v.required(Keyword.Type))
-    } yield (leafNode(schemaMeta, tpe))
+      config1 <- configParser(v.optional(Keyword.Config), config)
+    } yield (leafNode(schemaMeta, tpe, config1))
   }
 
-  def leafListParser(stmt: Statement): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v => 
+  def leafListParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v => 
       for {
-        dataDefs <- dataDefParser(v)
+        config1 <- configParser(v.optional(Keyword.Config), config)
+        dataDefs <- dataDefParser(v, config1)
         schemaMeta <- schemaMetaParser(stmt)
         tpe <- typeParser(v.required(Keyword.Type))
-      } yield (leafListNode(schemaMeta, tpe))
+      } yield (leafListNode(schemaMeta, tpe, config1))
     }
 
   def typeParser(stmt: Statement): ParserResult[SchemaType] = ParserResult.fromValidated(stmt) { v =>
@@ -233,7 +238,7 @@ object parsers {
     v.many0(Keyword.Import).map(importParser).sequence.flatTap(resolveImports)
   }
 
-  def dataDefParser(vStmts: ValidStatements): ParserResult[List[DataNode]] = {
+  def dataDefParser(vStmts: ValidStatements, config: Boolean): ParserResult[List[DataNode]] = {
     val kwParserMap = Seq(
       (Keyword.Container, containerParser),
       (Keyword.List, listParser),
@@ -242,7 +247,7 @@ object parsers {
     ).toMap
 
     vStmts.filter(kwParserMap.keySet.contains).foldLeft[List[ParserResult[DataNode]]](List.empty) { case (acc, (kw, stmt)) =>
-        kwParserMap(kw)(stmt) :: acc
+        kwParserMap(kw)(stmt, config) :: acc
       }.sequence
   }
 
@@ -261,6 +266,11 @@ object parsers {
   }
 
   def parseString(stmt: Statement): ParserResult[String] = ParserResult.validate(stmt).as(stmt.arg.get)
+  def parseBoolean(stmt: Statement): ParserResult[Boolean] = ParserResult.validate(stmt).as {
+    val arg = stmt.arg.get
+    arg == "true"
+  }
+
   def parseURI(stmt: Statement): ParserResult[URI] = ParserResult.validate(stmt).flatMap { _ =>
     ParserResult.fromEither(Try(URI(stmt.arg.get)).toOption.toRight(s"${stmt.arg.get} is not a valid namespace."))
   }

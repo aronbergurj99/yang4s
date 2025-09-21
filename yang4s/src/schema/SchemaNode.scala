@@ -31,12 +31,12 @@ sealed trait SchemaNode {
 object SchemaNode {
   import SchemaNodeKind.*
   type DataNode = TerminalNode | DataDefiningNode
-  case class TerminalNode(meta: SchemaMeta, tpe: SchemaType, kind: TerminalKind) extends SchemaNode
-  case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind)
+  case class TerminalNode(meta: SchemaMeta, tpe: SchemaType, kind: TerminalKind, config: Boolean = true) extends SchemaNode
+  case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind, config: Boolean = true)
       extends SchemaNode
 
-  def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
-  def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String]) = DataDefiningNode(meta, dataDefs, ListNode(key))
-  def leafNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafNode)
-  def leafListNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafList)
+  def containerNode(meta: SchemaMeta, dataDefs: List[DataNode], config: Boolean) = DataDefiningNode(meta, dataDefs, ContainerNode, config)
+  def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String], config: Boolean) = DataDefiningNode(meta, dataDefs, ListNode(key), config)
+  def leafNode(meta: SchemaMeta, tpe: SchemaType, config: Boolean) = TerminalNode(meta, tpe, LeafNode, config)
+  def leafListNode(meta: SchemaMeta, tpe: SchemaType, config: Boolean) = TerminalNode(meta, tpe, LeafList, config)
 }
