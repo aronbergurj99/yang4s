@@ -2,6 +2,7 @@ package yang4s.schema
 
 import yang4s.parser.Statement
 import yang4s.schema.SchemaNode.DataNode
+import yang4s.schema.SchemaNode.FeatureDefinition
 
 sealed trait SchemaModule {
   def name: String
@@ -11,7 +12,7 @@ sealed trait SchemaModule {
 
   def isImplemented: Boolean
 }
-case class Module(name: String, namespace: Namespace, prefix: String, dataDefs: List[SchemaNode.DataNode], typeDefs: List[SchemaType])
+case class Module(name: String, namespace: Namespace, prefix: String, dataDefs: List[SchemaNode.DataNode], typeDefs: List[SchemaType], features: List[FeatureDefinition])
     extends SchemaModule {
   def isImplemented: Boolean = !dataDefs.isEmpty
 }

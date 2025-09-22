@@ -103,10 +103,11 @@ object parsers {
             ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p))))
           )
           imports <- importsParser(v)
+          features <- v.many0(Keyword.Feature).map(featureDefinitionParser).sequence
           _ <- resolveTypeDefs(v)
           dataDefs <- dataDefParser(v, true)
           typeDefs <- ParserResult.inspect(_.typeDefStack.peak.resolved)
-        } yield (Module(arg, namespace, prefix, dataDefs, typeDefs))
+        } yield (Module(arg, namespace, prefix, dataDefs, typeDefs, features))
       }
   }
 
@@ -266,6 +267,12 @@ object parsers {
       meta <- schemaMetaParser(stmt, v)
     } yield (meta.copy(config = config1))
   }
+
+  def featureDefinitionParser(stmt: Statement): ParserResult[FeatureDefinition] = ParserResult.fromValidated(stmt) { v =>
+      for {
+        meta <- schemaMetaParser(stmt, v)
+      } yield (FeatureDefinition(meta))
+    }
 
   def qNameFromStmt(stmt: Statement): ParserResult[QName] = {
     val (prefix, identifier): (Option[String], String) = stmt.arg.get.split(":", 2) match

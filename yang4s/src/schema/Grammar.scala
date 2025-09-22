@@ -163,7 +163,10 @@ object Grammar {
     //Todo: validate yang version arg
     Keyword.YangVersion -> (ValidateArgument.identity, Map()),
     Keyword.Identity -> (ValidateArgument.identity, Map()),
-    Keyword.Feature -> (ValidateArgument.identity, Map()),
+    Keyword.Feature -> (ValidateArgument.identity, Map(
+      Keyword.Description -> Grammar(optional),
+      Keyword.Reference -> Grammar(optional),
+    )),
     Keyword.Status -> (ValidateArgument.identity, Map()),
     Keyword.Path -> (ValidateArgument.identity, Map()),
     Keyword.Config -> (ValidateArgument.identity, Map()),
