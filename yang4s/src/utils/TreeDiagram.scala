@@ -10,10 +10,19 @@ import yang4s.schema.BuiltInType
 import yang4s.schema.SchemaNode.*
 import yang4s.schema.SchemaNodeKind.*
 import yang4s.schema.Status
+import yang4s.schema.QName
 
 // https://datatracker.ietf.org/doc/html/rfc8340
 
 object TreeDiagram {
+  private def printQName(qName: QName, mod: SModule) = {
+    if (qName.namespace == mod.namespace) {
+      qName.localName
+    } else {
+      qName.qualifiedName
+    }
+  }
+
   private def printDataDef(node: DataNode, mod: SModule, isLast: Boolean, prefix: String, colLength: Int): String = {
     def printRow(meta: SchemaMeta, dataDefs: List[DataNode], opts: String = "", suffix: Option[String] = None): String = {
       val flag = if (meta.config) "rw" else "ro"
@@ -24,6 +33,7 @@ object TreeDiagram {
           case Status.Obsolete => "o"
       }
 
+
       prefix ++ s"$status--$flag ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printDataDefs(
         dataDefs,
         mod,
@@ -31,22 +41,29 @@ object TreeDiagram {
       )
     }
 
+
     node match
       case TerminalNode(meta, tpe, kind) => {
+        val features = {
+          meta.ifFeatures match
+            case Nil => ""
+            case _ @f => f.map(printQName(_, mod)).mkString("{", " ", "}?") 
+        }
         val gap = colLength - meta.qName.localName.length
         val typeName = {
           val qName = tpe.qName
           val isBuiltin = BuiltInType.isBuiltin(qName.localName)
-          if (isBuiltin || qName.namespace == mod.namespace) {
+          
+          if (isBuiltin) {
             qName.localName
           } else
-            qName.qualifiedName
+            printQName(qName, mod)
         }
         val indicator = kind match
           case LeafNode => ""
           case LeafList => "*"
         
-        printRow(meta, List.empty, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName}"))
+        printRow(meta, List.empty, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName} $features"))
 
       }
       case DataDefiningNode(meta, dataDefs, kind) => {
