@@ -18,7 +18,8 @@ case class SchemaMeta(
     qName: QName,
     description: Option[String],
     config: Boolean,
-    status: Status
+    status: Status,
+    ifFeatures: List[QName],
 )
 
 sealed trait SchemaNodeKind

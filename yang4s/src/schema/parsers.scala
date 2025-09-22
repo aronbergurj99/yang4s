@@ -47,11 +47,12 @@ object parsers {
       typeDefs: List[SchemaType],
       schemaCtx: SchemaContext,
       imports: Map[String, Namespace],
-      typeDefStack: Stack[TypeDefScope]
+      typeDefStack: Stack[TypeDefScope],
+      features: List[FeatureDefinition]
   ) 
 
   object ParsingCtx {
-    def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx(Namespace.DEFAULT, List.empty, ctx, Map.empty, Stack.empty)
+    def fromSchemaCtx(ctx: SchemaContext): ParsingCtx = ParsingCtx(Namespace.DEFAULT, List.empty, ctx, Map.empty, Stack.empty, List.empty)
 
     extension (self: ParsingCtx) {
       def getNamespace(maybePrefix: Option[String]): ErrorOr[Namespace] = {
@@ -103,7 +104,7 @@ object parsers {
             ParserResult.modify(ctx => ctx.copy(namespace = ctx.namespace.copy(prefix = Some(p))))
           )
           imports <- importsParser(v)
-          features <- v.many0(Keyword.Feature).map(featureDefinitionParser).sequence
+          features <- v.many0(Keyword.Feature).map(featureDefinitionParser).sequence.flatTap(fts => ParserResult.modify(_.copy(features = fts)))
           _ <- resolveTypeDefs(v)
           dataDefs <- dataDefParser(v, true)
           typeDefs <- ParserResult.inspect(_.typeDefStack.peak.resolved)
@@ -237,6 +238,13 @@ object parsers {
     v.many0(Keyword.Import).map(importParser).sequence.flatTap(resolveImports)
   }
 
+  def ifFeatureParser(stmt: Statement): ParserResult[QName] = ParserResult.validate(stmt).flatMap{_ =>
+      for {
+        qName <- qNameFromStmt(stmt)
+        _ <- ParserResult.inspectF(_.features.find(_.meta.qName == qName).toRight("Unknown feature"))
+      } yield (qName)
+    }
+
   def dataDefParser(vStmts: ValidStatements, config: Boolean): ParserResult[List[DataNode]] = {
     val kwParserMap = Seq(
       (Keyword.Container, containerParser),
@@ -253,8 +261,9 @@ object parsers {
   def schemaMetaParser(stmt: Statement, v: ValidStatements): ParserResult[SchemaMeta] = {
     for {
       qName <- qNameFromStmt(stmt)
-      status <- v.optional(Keyword.Status).map(statusParser(_)).sequence.map(_.getOrElse(Status.Current))
-    } yield (SchemaMeta(qName, None, false, status))
+      status <- v.optional(Keyword.Status).map(statusParser).sequence.map(_.getOrElse(Status.Current))
+      ifFeatures <- v.many0(Keyword.IfFeature).map(ifFeatureParser).sequence
+    } yield (SchemaMeta(qName, None, false, status, ifFeatures))
   }
 
   def statusParser(stmt: Statement): ParserResult[Status] = {

@@ -170,6 +170,7 @@ object Grammar {
     Keyword.Status -> (ValidateArgument.identity, Map()),
     Keyword.Path -> (ValidateArgument.identity, Map()),
     Keyword.Config -> (ValidateArgument.identity, Map()),
+    Keyword.IfFeature -> (ValidateArgument.identity, Map()),
   )
 
   def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
