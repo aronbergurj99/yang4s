@@ -9,6 +9,7 @@ import yang4s.schema.{Module => SModule}
 import yang4s.schema.BuiltInType
 import yang4s.schema.SchemaNode.*
 import yang4s.schema.SchemaNodeKind.*
+import yang4s.schema.Status
 
 // https://datatracker.ietf.org/doc/html/rfc8340
 
@@ -16,7 +17,14 @@ object TreeDiagram {
   private def printDataDef(node: DataNode, mod: SModule, isLast: Boolean, prefix: String, colLength: Int): String = {
     def printRow(meta: SchemaMeta, dataDefs: List[DataNode], opts: String = "", suffix: Option[String] = None): String = {
       val flag = if (meta.config) "rw" else "ro"
-      prefix ++ s"+--$flag ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printDataDefs(
+      val status = {
+        meta.status match
+          case Status.Current => "+"
+          case yang4s.schema.Status.Deprecated => "x"
+          case Status.Obsolete => "o"
+      }
+
+      prefix ++ s"$status--$flag ${meta.qName.localName}$opts${suffix.map(s => s" $s").getOrElse("")}\n" ++ printDataDefs(
         dataDefs,
         mod,
         prefix ++ { if (isLast) "   " else "|  " }

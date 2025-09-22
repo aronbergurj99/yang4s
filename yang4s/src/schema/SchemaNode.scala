@@ -3,10 +3,22 @@ package yang4s.schema
 import yang4s.schema.SchemaNodeKind.LeafNode
 import yang4s.schema.SchemaNodeKind.ListNode
 
+enum Status(val literal: String) {
+  case Current extends Status("current")
+  case Deprecated extends Status("deprecated")
+  case Obsolete extends Status("Obsolete")
+} 
+object Status {
+  def fromLiteral(literal: String): Option[Status] = {
+    Status.values.find(_.literal == literal)
+  }
+}
+
 case class SchemaMeta(
     qName: QName,
     description: Option[String],
-    config: Boolean
+    config: Boolean,
+    status: Status
 )
 
 sealed trait SchemaNodeKind

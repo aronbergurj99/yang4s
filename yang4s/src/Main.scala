@@ -1,4 +1,4 @@
-package module.foo
+package yang4s
 
 import yang4s.schema.{ ModuleName, SchemaContext, SchemaError }
 import yang4s.utils.TreeDiagram.{*, given}

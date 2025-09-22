@@ -35,6 +35,10 @@ object parsers {
       def mergeTypeDefs(sts: SchemaType*) = self.copy(resolved = self.resolved ++ sts)
       def mergeUnresolved(unresolved: Tuple2[QName, Statement]*) =
         self.copy(unresolved = self.unresolved ++ unresolved.toMap)
+
+      def resolve(qName: QName, st: SchemaType): TypeDefScope = {
+        mergeTypeDefs(st).copy(unresolved = self.unresolved.removed(qName))
+      }
     }
   }
 
@@ -198,9 +202,7 @@ object parsers {
             typeDefParser(stmt).flatMap { st =>
               ParserResult.modify { ctx =>
                   ctx.copy(
-                    typeDefStack = ctx.typeDefStack.withModifiedHead { scope =>
-                        scope.mergeTypeDefs(st).copy(unresolved = scope.unresolved.removed(qName))
-                      }
+                    typeDefStack = ctx.typeDefStack.withModifiedHead(_.resolve(qName, st))
                   )
                 }
               }
@@ -247,16 +249,21 @@ object parsers {
       }.sequence
   }
 
-  def schemaMetaParser(stmt: Statement): ParserResult[SchemaMeta] = {
+  def schemaMetaParser(stmt: Statement, v: ValidStatements): ParserResult[SchemaMeta] = {
     for {
       qName <- qNameFromStmt(stmt)
-    } yield (SchemaMeta(qName, None, false))
+      status <- v.optional(Keyword.Status).map(statusParser(_)).sequence.map(_.getOrElse(Status.Current))
+    } yield (SchemaMeta(qName, None, false, status))
+  }
+
+  def statusParser(stmt: Statement): ParserResult[Status] = {
+    ParserResult.fromEither(Status.fromLiteral(stmt.arg.get).toRight("Invalid status arguement"))
   }
 
   def dataNodeSchemaMetaParser(stmt: Statement, v: ValidStatements, config: Boolean): ParserResult[SchemaMeta] = {
     for {
       config1 <- configParser(v.optional(Keyword.Config), config)
-      meta <- schemaMetaParser(stmt)
+      meta <- schemaMetaParser(stmt, v)
     } yield (meta.copy(config = config1))
   }
 
