@@ -162,7 +162,8 @@ object parsers {
     for {
       schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
       tpe <- typeParser(v.required(Keyword.Type))
-    } yield (leafNode(schemaMeta, tpe))
+      mandatory <- v.optional(Keyword.Mandatory).map(mandatoryParser).sequence.map(_.getOrElse(false))
+    } yield (leafNode(schemaMeta, tpe, mandatory))
   }
 
   def leafListParser(stmt: Statement, config: Boolean): ParserResult[DataNode] = ParserResult.fromValidated(stmt) { v => 
@@ -282,6 +283,8 @@ object parsers {
         meta <- schemaMetaParser(stmt, v)
       } yield (FeatureDefinition(meta))
     }
+
+  def mandatoryParser(stmt: Statement): ParserResult[Boolean] = ParserResult.validate(stmt).flatMap(_ => parseBoolean(stmt))
 
   def qNameFromStmt(stmt: Statement): ParserResult[QName] = {
     val (prefix, identifier): (Option[String], String) = stmt.arg.get.split(":", 2) match

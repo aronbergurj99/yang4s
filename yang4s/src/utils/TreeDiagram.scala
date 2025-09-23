@@ -60,7 +60,11 @@ object TreeDiagram {
             printQName(qName, mod)
         }
         val indicator = kind match
-          case LeafNode => ""
+          case LeafNode(mandatory) => {
+            if (!mandatory) {
+              "?"
+            } else ""
+          }
           case LeafList => "*"
         
         printRow(meta, List.empty, opts = indicator, suffix = Some(s"${" ".repeat(gap + (4 - indicator.length))}${typeName} $features"))

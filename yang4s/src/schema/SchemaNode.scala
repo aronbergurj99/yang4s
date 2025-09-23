@@ -26,11 +26,11 @@ sealed trait SchemaNodeKind
 
 object SchemaNodeKind {
   type DataDefiningKind = ListNode | ContainerNode.type
-  type TerminalKind = LeafNode.type | LeafList.type
+  type TerminalKind = LeafNode | LeafList.type
 
   case object ContainerNode extends SchemaNodeKind
   case class ListNode(key: Option[String]) extends SchemaNodeKind
-  case object LeafNode extends SchemaNodeKind
+  case class LeafNode(mandatory: Boolean) extends SchemaNodeKind
   case object LeafList extends SchemaNodeKind
 }
 
@@ -51,6 +51,17 @@ object SchemaNode {
 
   def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
   def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String]) = DataDefiningNode(meta, dataDefs, ListNode(key))
-  def leafNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafNode)
+  def leafNode(meta: SchemaMeta, tpe: SchemaType, mandatory: Boolean) = TerminalNode(meta, tpe, LeafNode(mandatory))
   def leafListNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafList)
+
+  extension (self: SchemaNode) {
+    def mandatory: Boolean = {
+      self match
+        case TerminalNode(meta, tpe, kind) => kind match
+          case LeafNode(mandatory) => mandatory
+          case LeafList => false
+        case DataDefiningNode(meta, dataDefs, kind) => dataDefs.find(_.mandatory).fold(false)(_ => true)
+        case _ => false
+    }
+  }
 }
