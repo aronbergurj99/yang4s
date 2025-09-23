@@ -3,6 +3,7 @@ package yang4s.schema
 import yang4s.schema.SchemaNodeKind.LeafNode
 import yang4s.schema.SchemaNodeKind.ListNode
 
+
 enum Status(val literal: String) {
   case Current extends Status("current")
   case Deprecated extends Status("deprecated")
@@ -46,8 +47,15 @@ object SchemaNode {
   import SchemaNodeKind.*
   type DataNode = TerminalNode | DataDefiningNode
   case class TerminalNode(meta: SchemaMeta, tpe: SchemaType, kind: TerminalKind) extends SchemaNode
-  case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind)
-      extends SchemaNode
+  case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind) 
+      extends SchemaNode 
+
+  case class TypeDefinition(meta: SchemaMeta, builtIn: BuiltInType) extends SchemaNode {
+    def fromBuiltIn(builtIn: BuiltInType): TypeDefinition = TypeDefinition(
+      SchemaMeta(QName.defaultNamespace(builtIn.literal), None, false, Status.Current, List.empty), builtIn)
+  }
+
+  case class FeatureDefinition(meta: SchemaMeta) extends SchemaNode
 
   def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
   def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String]) = DataDefiningNode(meta, dataDefs, ListNode(key))
