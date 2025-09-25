@@ -103,7 +103,7 @@ object TreeDiagram {
       .asInstanceOf[Seq[SModule]]
 
     implementedModules.map { m =>
-      s"module: ${m.name}\n${{ printDataDefs(m.dataDefs, m) }}"
+      s"module: ${m.name}\n${{ printDataDefs(m.dataDefs, m, "  ")}}"
     }.mkString
   }
 }
