@@ -11,7 +11,7 @@ A toy implementation of a yang parser for scala. It is not a full implementation
     import yang4s.utils.TreeDiagram.*
 
     val result = for {
-      (ctx, _) <- SchemaContext.empty(Seq("yang")).loadModule(ModuleName("ietf-interfaces"))
+      (ctx, _) <- SchemaContext.empty(searchPaths = Seq("yang")).loadModule(ModuleName("ietf-interfaces"))
     } yield (printModules(ctx.modules*))
 
     println(result.merge)
