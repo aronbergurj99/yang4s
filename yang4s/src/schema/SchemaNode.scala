@@ -30,7 +30,7 @@ object SchemaNodeKind {
   type TerminalKind = LeafNode | LeafList.type
 
   case object ContainerNode extends SchemaNodeKind
-  case class ListNode(key: Option[String]) extends SchemaNodeKind
+  case class ListNode(key: QName) extends SchemaNodeKind
   case class LeafNode(mandatory: Boolean) extends SchemaNodeKind
   case object LeafList extends SchemaNodeKind
 }
@@ -58,7 +58,7 @@ object SchemaNode {
   case class FeatureDefinition(meta: SchemaMeta) extends SchemaNode
 
   def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
-  def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: Option[String]) = DataDefiningNode(meta, dataDefs, ListNode(key))
+  def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: QName) = DataDefiningNode(meta, dataDefs, ListNode(key))
   def leafNode(meta: SchemaMeta, tpe: SchemaType, mandatory: Boolean) = TerminalNode(meta, tpe, LeafNode(mandatory))
   def leafListNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafList)
 

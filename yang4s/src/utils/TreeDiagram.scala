@@ -73,7 +73,7 @@ object TreeDiagram {
       case DataDefiningNode(meta, dataDefs, kind) => {
         kind match
           case ContainerNode => printRow(meta, dataDefs)
-          case ListNode(key) => printRow(meta, dataDefs, opts = "*", suffix = key.map(k => s"[$k]"))
+          case ListNode(key) => printRow(meta, dataDefs, opts = "*", suffix = Some(s"[${key.localName}]"))
       }
   }
 

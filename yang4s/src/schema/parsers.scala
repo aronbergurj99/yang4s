@@ -15,6 +15,8 @@ import yang4s.schema.parsers.ErrorOr
 import java.net.URI
 import scala.util.Try
 import yang4s.utils.Stack
+import yang4s.schema.SchemaNodeKind.LeafNode
+import yang4s.schema.SchemaNodeKind.LeafList
 
 
 object parsers {
@@ -150,11 +152,24 @@ object parsers {
     for {
       schemaMeta <- dataNodeSchemaMetaParser(stmt, v, config)
       dataDefs <- dataDefParser(v, schemaMeta.config)
-      key <- ParserResult.success(v.optional(Keyword.Key)).flatMap(_.map(keyParser).sequence)
-    } yield (listNode(schemaMeta, dataDefs, key))
+      key <- keyParser(v.required(Keyword.Key))
+      dataDefs1 <- validateKey(key, dataDefs)
+    } yield (listNode(schemaMeta, dataDefs1, key))
   }
 
-  def keyParser(stmt: Statement): ParserResult[String] = parseString(stmt)
+  def validateKey(key: QName, dataDefs: List[DataNode]): ParserResult[List[DataNode]] = {
+    val index = dataDefs.indexWhere(_.meta.qName == key)
+    ParserResult.fromEither(dataDefs.lift(index).flatMap { dn => 
+      dn match
+        case tm@TerminalNode(meta, tpe, LeafNode(mandatory)) => {
+          Some(dataDefs.updated(index, tm.copy(kind = LeafNode(true))))
+        }
+        case _ => None
+    }.toRight("Unknown key."))
+  }
+
+
+  def keyParser(stmt: Statement): ParserResult[QName] = qNameFromStmt(stmt)
   def configParser(stmt: Option[Statement], default: Boolean): ParserResult[Boolean] =
     ParserResult.success(stmt).flatMap(_.map(parseBoolean).sequence).map(_.getOrElse(default))
 
