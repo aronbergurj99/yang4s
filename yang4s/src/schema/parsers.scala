@@ -110,7 +110,7 @@ object parsers {
           _ <- resolveTypeDefs(v)
           dataDefs <- dataDefParser(v, true)
           typeDefs <- ParserResult.inspect(_.typeDefStack.peak.resolved)
-        } yield (Module(arg, namespace, prefix, dataDefs, typeDefs, features))
+        } yield (Module(arg, namespace, prefix, dataDefs, typeDefs, List.empty, features))
       }
   }
 

@@ -50,7 +50,8 @@ object SchemaNode {
   case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind) 
       extends SchemaNode 
 
-  case class TypeDefinition(meta: SchemaMeta, builtIn: BuiltInType) extends SchemaNode {
+  case class TypeDefinition(meta: SchemaMeta, builtIn: BuiltInType) extends SchemaNode 
+  object TypeDefinition {
     def fromBuiltIn(builtIn: BuiltInType): TypeDefinition = TypeDefinition(
       SchemaMeta(QName.defaultNamespace(builtIn.literal), None, false, Status.Current, List.empty), builtIn)
   }

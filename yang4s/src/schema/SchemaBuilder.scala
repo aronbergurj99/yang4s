@@ -7,36 +7,66 @@ import cats.Applicative
 import yang4s.schema.SchemaBuilder.Result.Success
 import cats.Monad
 import scala.annotation.tailrec
+import yang4s.schema.SchemaNode.TypeDefinition
 
 type SchemaBuilder[A] = BuildCtx => Result[A]
 
 object SchemaBuilder {
   type Error = String
+  type Prefix = String
 
-  case class BuildCtx(stmt: Statement, namespace: Namespace)
+  case class BuildCtx(
+      namespace: Namespace,
+      scope: Scope,
+      schemaCtx: SchemaContext,
+      imports: Map[Prefix, Namespace]
+  ) {
+    def stmt = scope.stmt
+  }
+
   object BuildCtx {
     extension (self: BuildCtx) {
-      def focus(stmt: Statement) = self.copy(stmt = stmt)
+      def focus(stmt: Statement) = self.copy(scope = self.scope.child(stmt))
 
       def toError(message: String): Error = {
         message
       }
+
+      def addTypeDefToScope(td: TypeDefinition): BuildCtx = {
+        self.copy(scope = self.scope.copy(typeDefinitions = td :: self.scope.typeDefinitions))
+      }
+
+      def resolvePrefix(prefix: Prefix): Option[Namespace] = {
+        self.imports
+          .get(prefix)
+          .orElse(self.namespace.prefix.filter(_ == prefix).map(_ => self.namespace))
+      }
     }
 
-    def fromStmt(stmt: Statement): BuildCtx = BuildCtx(stmt, Namespace.DEFAULT)
+    def fromStmt(stmt: Statement, schemaCtx: SchemaContext): BuildCtx =
+      BuildCtx(Namespace.DEFAULT, Scope.fromStmt(stmt), schemaCtx, Map.empty)
+
   }
 
   enum Result[+A] {
     case Success(get: A, ctx: BuildCtx)
     case Failure(get: Error) extends Result[Nothing]
+
   }
 
   def succeed[A](a: A): SchemaBuilder[A] = ctx => Result.Success(a, ctx)
   def fail(message: String): SchemaBuilder[Nothing] = ctx => Result.Failure(ctx.toError(message))
-  def modifyContext(f: BuildCtx => BuildCtx): SchemaBuilder[Unit] = { ctx => 
+  def modifyCtx(f: BuildCtx => BuildCtx): SchemaBuilder[Unit] = { ctx =>
     Success((), f(ctx))
   }
+  def getCtx: SchemaBuilder[BuildCtx] = ctx => Success(ctx, ctx)
+  def inspectCtx[A](f: BuildCtx => A): SchemaBuilder[A] = getCtx.map(f)
 
+  def fromEither[A, B](either: Either[A, B], f: A => Error): SchemaBuilder[B] = {
+    either match
+      case Left(value)  => fail(f(value))
+      case Right(value) => succeed(value)
+  }
 
   extension [A](self: SchemaBuilder[A]) {
 
@@ -48,22 +78,25 @@ object SchemaBuilder {
 
     def map[B](f: A => B): SchemaBuilder[B] = flatMap(f andThen succeed)
 
-    def orElse(other: SchemaBuilder[A]): SchemaBuilder[A] = { ctx =>
+    infix def orElse(other: SchemaBuilder[A]): SchemaBuilder[A] = { ctx =>
       self(ctx) match
         case Result.Failure(_) => other(ctx)
         case r                 => r
     }
 
-    def product[B](other: SchemaBuilder[B]): SchemaBuilder[(A, B)] = self.flatMap(a => other.map(b => (a, b)))
+    def product[B](other: SchemaBuilder[B]): SchemaBuilder[(A, B)] =
+      self.flatMap(a => other.map(b => (a, b)))
 
-    def build(stmt: Statement): Either[String, A] = self(BuildCtx.fromStmt(stmt)) match
-      case Result.Success(get, ctx) => Right(get)
+    def build(stmt: Statement, schemaCtx: SchemaContext): Either[String, (BuildCtx, A)] = self(
+      BuildCtx.fromStmt(stmt, schemaCtx)
+    ) match
+      case Result.Success(get, ctx) => Right((ctx, get))
       case Result.Failure(get)      => Left(get)
   }
 
   given Monad[SchemaBuilder] with {
     def pure[A](x: A): SchemaBuilder[A] = succeed(x)
-    def flatMap[A, B](fa: SchemaBuilder[A])(f: A => SchemaBuilder[B]): SchemaBuilder[B] = 
+    def flatMap[A, B](fa: SchemaBuilder[A])(f: A => SchemaBuilder[B]): SchemaBuilder[B] =
       fa.flatMap(f)
 
     def tailRecM[A, B](a: A)(f: A => SchemaBuilder[Either[A, B]]): SchemaBuilder[B] = { ctx =>
@@ -80,11 +113,5 @@ object SchemaBuilder {
 
       loop(a)
     }
-    
-    
-    // def ap[A, B](ff: SchemaBuilder[A => B])(fa: SchemaBuilder[A]): SchemaBuilder[B] =
-    //   fa.flatMap(a => ff.map(_(a)))
-    // def pure[A](a: A): SchemaBuilder[A] = succeed(a)
-    // override def map[A, B](fa: SchemaBuilder[A])(f: A => B): SchemaBuilder[B] = fa.map(f)
   }
 }

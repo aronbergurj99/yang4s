@@ -20,12 +20,17 @@ enum BuiltInType(val literal: String) {
   case UInt32 extends BuiltInType("uint32")
   case UInt64 extends BuiltInType("uint64")
   case Union extends BuiltInType("union")
+
+  def qName: QName = QName(Namespace.DEFAULT, literal)
 }
 
 object BuiltInType {
   def fromLiteral(literal: String): Option[BuiltInType] = {
     BuiltInType.values.find(_.literal == literal)
   }
+
+  def fromQName(qName: QName): Option[BuiltInType] = 
+    BuiltInType.values.find(_.qName == qName)
 
   def isBuiltin(literal: String): Boolean = fromLiteral(literal).fold(false)(_ => true)
 }
