@@ -1,13 +1,14 @@
 package yang4s.schema
 
-import yang4s.parser.Statement
-
-import SchemaBuilder.*
 import cats.Applicative
-import yang4s.schema.SchemaBuilder.Result.Success
 import cats.Monad
 import scala.annotation.tailrec
+
+import SchemaBuilder.*
+import yang4s.parser.Statement
+import yang4s.schema.SchemaBuilder.Result.Success
 import yang4s.schema.SchemaNode.TypeDefinition
+import yang4s.schema.SchemaNode.FeatureDefinition
 
 type SchemaBuilder[A] = BuildCtx => Result[A]
 
@@ -19,7 +20,8 @@ object SchemaBuilder {
       namespace: Namespace,
       scope: Scope,
       schemaCtx: SchemaContext,
-      imports: Map[Prefix, Namespace]
+      imports: Map[Prefix, Namespace],
+      features: List[FeatureDefinition]
   ) {
     def stmt = scope.stmt
   }
@@ -29,7 +31,7 @@ object SchemaBuilder {
       def focus(stmt: Statement) = self.copy(scope = self.scope.child(stmt))
 
       def toError(message: String): Error = {
-        message
+        s"${self.scope.stmt.keyword}: $message"
       }
 
       def addTypeDefToScope(td: TypeDefinition): BuildCtx = {
@@ -44,7 +46,7 @@ object SchemaBuilder {
     }
 
     def fromStmt(stmt: Statement, schemaCtx: SchemaContext): BuildCtx =
-      BuildCtx(Namespace.DEFAULT, Scope.fromStmt(stmt), schemaCtx, Map.empty)
+      BuildCtx(Namespace.DEFAULT, Scope.fromStmt(stmt), schemaCtx, Map.empty, List.empty)
 
   }
 

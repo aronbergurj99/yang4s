@@ -51,7 +51,7 @@ object TreeDiagram {
         }
         val gap = colLength - meta.qName.localName.length
         val typeName = {
-          val qName = tpe.qName
+          val qName = tpe.meta.qName
           val isBuiltin = BuiltInType.isBuiltin(qName.localName)
           
           if (isBuiltin) {

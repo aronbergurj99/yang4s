@@ -2,6 +2,7 @@ package yang4s.schema
 
 import yang4s.schema.SchemaBuilder.*
 import yang4s.schema.SchemaNode.{*, given}
+import yang4s.schema.SchemaNodeKind.{*, given}
 import yang4s.parser.Statement
 
 import cats.syntax.traverse.*
@@ -10,7 +11,7 @@ import cats.syntax.flatMap.*
 import scala.util.Try
 import java.net.URI
 
-object builders {
+object Builders {
   type Statements = List[Statement]
   case class Import(prefix: String, moduleName: String)
 
@@ -18,7 +19,9 @@ object builders {
 
   def isDataDefStmt(stmt: Statement): Boolean = Set(
     Keyword.Container,
-    Keyword.List
+    Keyword.List,
+    Keyword.Leaf,
+    Keyword.LeafList
   ).map(_.literal).contains(stmt.keyword)
 
   def kwPredicate(kw: Keyword): Statement => Boolean = { stmt =>
@@ -66,15 +69,71 @@ object builders {
         .flatTap(ns => modifyCtx(_.copy(namespace = ns.copy(prefix = Some(prefix)))))
       imports <- many(kwPredicate(Keyword.Import), importBuilder)
         .flatTap(resolveImports)
+      featureDefs <- many(kwPredicate(Keyword.Feature), featureDefinitionBuilder)
+        .flatTap(fds => modifyCtx(ctx => ctx.copy(features = fds)))
       typeDefs <- resolveTypeDefinitions
-    } yield (Module(moduleName, namespace, prefix, List.empty, List.empty, typeDefs, List.empty))
+      dataDefs <- dataDefsBuilder
+    } yield (Module(moduleName, namespace, prefix, dataDefs, List.empty, typeDefs, List.empty))
   }
 
   // Data Nodes
 
-  def containerBuilder: SchemaBuilder[DataNode] = ???
-  def listBuilder: SchemaBuilder[DataNode] = ???
-  def dataDefBuilder: SchemaBuilder[DataNode] = containerBuilder orElse listBuilder
+  def containerBuilder: SchemaBuilder[DataNode] =
+    for {
+      meta <- dataMetaBuilder
+      dataDefs <- dataDefsBuilder
+    } yield (containerNode(meta, dataDefs))
+
+  def listBuilder: SchemaBuilder[DataNode] =
+    for {
+      meta <- dataMetaBuilder
+      key <- required(Keyword.Key, keyBuilder)
+      dataDefs <- dataDefsBuilder.flatMap(validateListKey(_, key))
+    } yield (listNode(meta, dataDefs, key))
+
+  def validateListKey(dataDefs: List[DataNode], key: QName): SchemaBuilder[List[DataNode]] = {
+    val (before, after) = dataDefs.span(_.meta.qName == qNameArg)
+
+    after match
+      case (tn @ TerminalNode(meta, tpe, ln @ LeafNode(mandatory))) :: tail =>
+        succeed(before ::: tn.copy(kind = ln.copy(mandatory = true)) :: tail)
+      case _ => fail("Not a valid key.")
+  }
+
+  def leafBuilder: SchemaBuilder[DataNode] =
+    for {
+      meta <- dataMetaBuilder
+      tpe <- required(Keyword.Type, resolveType)
+      mandatory <- optional(Keyword.Mandatory, mandatoryBuilder)
+    } yield (leafNodeV2(meta, tpe, mandatory.getOrElse(false)))
+
+  def leafListBuilder: SchemaBuilder[DataNode] =
+    for {
+      meta <- dataMetaBuilder
+      tpe <- required(Keyword.Type, resolveType)
+    } yield (leafListNodeV2(meta, tpe))
+
+  def dataDefsBuilder: SchemaBuilder[List[DataNode]] = getCtx.flatMap { ctx =>
+    val statements = ctx.stmt.substatements.filter(isDataDefStmt)
+
+    statements
+      .map { stmt =>
+        Keyword
+          .fromLiteral(stmt.keyword)
+          .flatMap { kw =>
+            kw match
+              case Keyword.Container => Some(containerBuilder)
+              case Keyword.Leaf      => Some(leafBuilder)
+              case Keyword.LeafList  => Some(leafListBuilder)
+              case Keyword.List      => Some(listBuilder)
+              case _                 => None
+          }
+          .fold(fail("Unknown exception."))(b => succeed((stmt, b)))
+      }
+      .map(_.flatMap(scoped))
+      .sequence
+      .asInstanceOf[SchemaBuilder[List[DataNode]]]
+  }
 
   // Imports
 
@@ -116,29 +175,27 @@ object builders {
   def resolveTypeDefFromScope(qName: QName, scope: Scope): SchemaBuilder[TypeDefinition] = { ctx =>
     val runningCtx = ctx.copy(scope = scope)
 
-    val siblingTypeDefStmts =
+    val typeDefStmts =
       scope.stmt.substatements
         .filter(kwPredicate(Keyword.TypeDef))
 
-    val siblingQNamesBuilder =
-      siblingTypeDefStmts
+    val qNamesBuilder =
+      typeDefStmts
         .map(scoped(_, qNameArg))
         .sequence
 
-    val statement = siblingQNamesBuilder.map { qNames =>
-      qNames
-        .zip(siblingTypeDefStmts)
-        .find(_._1 == qName)
-        .map(_._2)
-    }(runningCtx) match
-      case Result.Success(get, ctx) => get
-      case Result.Failure(get)      => None
-
-    statement.fold(
-      Result.Failure(ctx.toError(s"Unknown type. $qName ${ctx.scope.typeDefinitions}"))
-    )(
-      scoped(_, typeDefinitionBuilder)(runningCtx)
-    )
+    qNamesBuilder
+      .map { qNames =>
+        qNames
+          .zip(typeDefStmts)
+          .find(_._1 == qName)
+          .map(_._2)
+      }
+      .flatMap { stmt =>
+        stmt.fold(fail(s"Unknown type. ${qName}"))(
+          scoped(_, typeDefinitionBuilder)
+        )
+      }(runningCtx)
   }
 
   /** Resolves type from ctx or parent sibling statements if not yet resolved
@@ -154,32 +211,75 @@ object builders {
   def resolveTypeDefinitions: SchemaBuilder[List[TypeDefinition]] = {
     for {
       scope <- inspectCtx(_.scope)
-      typeDefs <- many(kwPredicate(Keyword.TypeDef), qNameArg.flatMap(resolveTypeDefinition(_, scope)))
-    } yield ({
-      typeDefs
-    })
+      typeDefs <- many(
+        kwPredicate(Keyword.TypeDef),
+        qNameArg.flatMap(resolveTypeDefinition(_, scope))
+      )
+      _ <- modifyCtx(ctx =>
+        ctx.copy(scope = ctx.scope.copy(typeDefinitions = typeDefs ++ ctx.scope.typeDefinitions))
+      )
+    } yield (typeDefs)
   }
 
   /** Resolve the type definition from type statement
     */
   def resolveType: SchemaBuilder[TypeDefinition] = qNameArg.flatMap { qName =>
-    inspectCtx(_.scope).flatMap { scope => 
+    inspectCtx(_.scope).flatMap { scope =>
       BuiltInType
         .fromLiteral(qName.localName)
-        .fold(resolveTypeDefinition(qName, scope.parent.flatMap(_.parent).getOrElse(scope)))(b => succeed(TypeDefinition.fromBuiltIn(b)))
+        .fold(resolveTypeDefinition(qName, scope.parent.flatMap(_.parent).getOrElse(scope)))(b =>
+          succeed(TypeDefinition.fromBuiltIn(b))
+        )
     }
   }
 
   // Misc
 
   def namespaceBuilder: SchemaBuilder[Namespace] = uriArg.map(Namespace(_, None))
+
   def prefixBuilder: SchemaBuilder[String] = stringArg
+
+  def ifFeatureBuilder: SchemaBuilder[QName] = for {
+    features <- inspectCtx(_.features)
+    qName <- qNameArg
+    _ <- features
+      .find(_.meta.qName == qName)
+      .fold(fail("Feature does not exists."))(_ => succeed(()))
+  } yield (qName)
+
+  def keyBuilder: SchemaBuilder[QName] = qNameArg
+
+  def mandatoryBuilder: SchemaBuilder[Boolean] = boolArg
+
+  // Module header
+
+  def featureDefinitionBuilder: SchemaBuilder[FeatureDefinition] =
+    metaBuilder.map(FeatureDefinition(_))
+
+  // Common
+  def statusBuilder: SchemaBuilder[Status] = for {
+    arg <- stringArg
+    status <- fromEither(Status.fromLiteral(arg).toRight("Not a valid status."), identity)
+  } yield (status)
+
+  def configBuilder: SchemaBuilder[Boolean] = boolArg
 
   // Schema Meta Builders
 
   def metaBuilder: SchemaBuilder[SchemaMeta] = for {
     qName <- qNameArg
-  } yield (SchemaMeta(qName, None, false, Status.Current, List.empty))
+    status <- optional(Keyword.Status, statusBuilder)
+    ifFeatures <- many(kwPredicate(Keyword.IfFeature), ifFeatureBuilder)
+  } yield (SchemaMeta(qName, None, false, status.getOrElse(Status.Current), ifFeatures))
+
+  def dataMetaBuilder: SchemaBuilder[SchemaMeta] = for {
+    config0 <- inspectCtx(_.scope.config)
+    meta <- metaBuilder
+    config1 <- optional(Keyword.Config, configBuilder)
+      .map(_.getOrElse(config0))
+      .map(_ && config0)
+      .flatTap(c => modifyCtx(ctx => ctx.copy(scope = ctx.scope.copy(config = c))))
+  } yield (meta.copy(config = config1))
 
   // Arg Builders
 
@@ -190,6 +290,18 @@ object builders {
   def stringArg: SchemaBuilder[String] = { ctx =>
     ctx.stmt.arg.fold(Result.Failure(ctx.toError("Expected an argument.")))(Result.Success(_, ctx))
   }
+
+  def boolArg: SchemaBuilder[Boolean] = stringArg.flatMap { arg =>
+    val boolOpt: Option[Boolean] = {
+      if (arg == "true")
+        Some(true)
+      else if (arg == "false")
+        Some(false)
+      else None
+    }
+    boolOpt.fold(fail("Not a valid boolean."))(succeed)
+  }
+
   def qNameArg: SchemaBuilder[QName] = stringArg.flatMap { arg =>
     val (prefixOption, identifier): (Option[String], String) = arg.split(":", 2) match
       case Array(prefix, identifier) => (Some(prefix), identifier)

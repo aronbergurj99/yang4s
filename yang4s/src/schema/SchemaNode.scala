@@ -46,7 +46,7 @@ sealed trait SchemaNode {
 object SchemaNode {
   import SchemaNodeKind.*
   type DataNode = TerminalNode | DataDefiningNode
-  case class TerminalNode(meta: SchemaMeta, tpe: SchemaType, kind: TerminalKind) extends SchemaNode
+  case class TerminalNode(meta: SchemaMeta, tpe: TypeDefinition, kind: TerminalKind) extends SchemaNode
   case class DataDefiningNode(meta: SchemaMeta, dataDefs: List[DataNode], kind: DataDefiningKind) 
       extends SchemaNode 
 
@@ -60,8 +60,10 @@ object SchemaNode {
 
   def containerNode(meta: SchemaMeta, dataDefs: List[DataNode]) = DataDefiningNode(meta, dataDefs, ContainerNode)
   def listNode(meta: SchemaMeta, dataDefs: List[DataNode], key: QName) = DataDefiningNode(meta, dataDefs, ListNode(key))
-  def leafNode(meta: SchemaMeta, tpe: SchemaType, mandatory: Boolean) = TerminalNode(meta, tpe, LeafNode(mandatory))
-  def leafListNode(meta: SchemaMeta, tpe: SchemaType) = TerminalNode(meta, tpe, LeafList)
+  def leafNode(meta: SchemaMeta, tpe: SchemaType, mandatory: Boolean) = ???
+  def leafNodeV2(meta: SchemaMeta, tpe: TypeDefinition, mandatory: Boolean) = TerminalNode(meta, tpe, LeafNode(mandatory))
+  def leafListNode(meta: SchemaMeta, tpe: SchemaType) = ???
+  def leafListNodeV2(meta: SchemaMeta, tpe: TypeDefinition) = TerminalNode(meta, tpe, LeafList)
 
   extension (self: SchemaNode) {
     def mandatory: Boolean = {

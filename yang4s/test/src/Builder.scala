@@ -2,7 +2,7 @@ package yang4s.schema
 
 import munit.FunSuite
 import yang4s.parser.StatementParser
-import yang4s.schema.builders.moduleBuilder
+import yang4s.schema.Builders.moduleBuilder
 import yang4s.utils.TreeDiagram.printModules
 
 class BuilderSuite extends FunSuite {
