@@ -1,16 +1,8 @@
 package yang4s.utils
 
-import yang4s.schema.SchemaContext
-import yang4s.schema.SchemaModule
-import yang4s.schema.SubModule
-import yang4s.schema.SchemaNode
-import yang4s.schema.SchemaMeta
-import yang4s.schema.{Module => SModule}
-import yang4s.schema.BuiltInType
+import yang4s.schema.{Module => SModule, *}
 import yang4s.schema.SchemaNode.*
 import yang4s.schema.SchemaNodeKind.*
-import yang4s.schema.Status
-import yang4s.schema.QName
 
 // https://datatracker.ietf.org/doc/html/rfc8340
 
