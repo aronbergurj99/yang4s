@@ -73,7 +73,7 @@ object Builders {
         .flatTap(fds => modifyCtx(ctx => ctx.copy(features = fds)))
       typeDefs <- resolveTypeDefinitions
       dataDefs <- dataDefsBuilder
-    } yield (Module(moduleName, namespace, prefix, dataDefs, List.empty, typeDefs, List.empty))
+    } yield (Module(moduleName, namespace, prefix, dataDefs, typeDefs, featureDefs))
   }
 
   // Data Nodes
@@ -105,13 +105,13 @@ object Builders {
       meta <- dataMetaBuilder
       tpe <- required(Keyword.Type, resolveType)
       mandatory <- optional(Keyword.Mandatory, mandatoryBuilder)
-    } yield (leafNodeV2(meta, tpe, mandatory.getOrElse(false)))
+    } yield (leafNode(meta, tpe, mandatory.getOrElse(false)))
 
   def leafListBuilder: SchemaBuilder[DataNode] =
     for {
       meta <- dataMetaBuilder
       tpe <- required(Keyword.Type, resolveType)
-    } yield (leafListNodeV2(meta, tpe))
+    } yield (leafListNode(meta, tpe))
 
   def dataDefsBuilder: SchemaBuilder[List[DataNode]] = getCtx.flatMap { ctx =>
     val statements = ctx.stmt.substatements.filter(isDataDefStmt)
@@ -147,8 +147,8 @@ object Builders {
   def resolveImports(imports: List[Import]): SchemaBuilder[Unit] = {
     val moduleNames = imports.map(i => ModuleName(i.moduleName, None))
     for {
-      (schemaCtx, scope) <- inspectCtx(ctx => (ctx.schemaCtx, ctx.scope))
-      (_, modules) <- fromEither(schemaCtx.loadModules(moduleNames), identity)
+      (schemaCtx0, scope) <- inspectCtx(ctx => (ctx.schemaCtx, ctx.scope))
+      (schemaCtx1, modules) <- fromEither(schemaCtx0.loadModules(moduleNames), identity)
       _ <- modifyCtx(
         _.copy(
           imports = imports
@@ -157,7 +157,8 @@ object Builders {
             .map((p, m) => (p, m.namespace.copy(prefix = Some(p))))
             .toMap,
           scope =
-            scope.copy(typeDefinitions = scope.typeDefinitions ++ modules.flatMap(_.typeDefsV2))
+            scope.copy(typeDefinitions = scope.typeDefinitions ++ modules.flatMap(_.typeDefs)),
+          schemaCtx = schemaCtx1
         )
       )
     } yield ()
