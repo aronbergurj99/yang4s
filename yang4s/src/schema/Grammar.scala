@@ -11,21 +11,6 @@ enum Version(val literal: String) {
   case Rrf7950 extends Version("1.1")
 }
 
-type ValidationResult = Either[CardinalityError, ValidStatements]
-
-case class ValidStatements(
-    stmts: List[Tuple2[Keyword, Statement]],
-    unknowns: List[Statement]
-) {
-  def required(kw: Keyword): Statement = find(kw).get
-  def optional(kw: Keyword): Option[Statement] = find(kw)
-  def many0(kw: Keyword): List[Statement] = query(kw)
-
-  def filter(predicate: Keyword => Boolean): List[Tuple2[Keyword, Statement]] = stmts.filter(v => predicate(v._1))
-  def find(kw: Keyword): Option[Statement] = query(kw).lift(0)
-  def query(kw: Keyword): List[Statement] = filter(_ == kw).map(_._2)
-}
-
 case class Cardinality(min: Int, max: Option[Int]) {
   import Cardinality.*
 
@@ -57,16 +42,14 @@ object Cardinality {
 
 case class Grammar(cardinality: Cardinality, section: Int = 0)
 type Rules = Map[Keyword, Grammar]
-type ValidateArgument = Option[String] => Either[String, Unit]
-object ValidateArgument {
-  def identity: ValidateArgument = { arg =>
-    arg.toRight("Missing argument").map(_ => ())
-  }
-}
+
 object Grammar {
+  type Valid = Unit
+  type Error = String
+
   import Cardinality.*
-  private val rfc6020: Map[Keyword, (ValidateArgument, Rules)] = Map(
-    Keyword.Module -> (ValidateArgument.identity, Map(
+  private val rfc6020: Map[Keyword, Rules] = Map(
+    Keyword.Module -> Map(
       Keyword.Namespace -> Grammar(required),
       Keyword.Prefix -> Grammar(required),
       Keyword.YangVersion -> Grammar(optional),
@@ -79,17 +62,17 @@ object Grammar {
       Keyword.List -> Grammar(many0()),
       Keyword.TypeDef -> Grammar(many0()),
       Keyword.Identity -> Grammar(many0()),
-      Keyword.Feature -> Grammar(many0()),
-    )),
-    Keyword.Container -> (ValidateArgument.identity, Map(
+      Keyword.Feature -> Grammar(many0())
+    ),
+    Keyword.Container -> Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
       Keyword.Leaf -> Grammar(many0()),
       Keyword.Config -> Grammar(optional),
       Keyword.Status -> Grammar(optional),
-      Keyword.Description -> Grammar(optional),
-    )),
-    Keyword.List -> (ValidateArgument.identity, Map(
+      Keyword.Description -> Grammar(optional)
+    ),
+    Keyword.List -> Map(
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
       Keyword.Leaf -> Grammar(many0()),
@@ -97,9 +80,9 @@ object Grammar {
       Keyword.Key -> Grammar(optional),
       Keyword.Config -> Grammar(optional),
       Keyword.Status -> Grammar(optional),
-      Keyword.Description -> Grammar(optional),
-    )),
-    Keyword.Leaf -> (ValidateArgument.identity, Map(
+      Keyword.Description -> Grammar(optional)
+    ),
+    Keyword.Leaf -> Map(
       Keyword.Type -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
@@ -111,9 +94,9 @@ object Grammar {
       Keyword.Mandatory -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
       Keyword.IfFeature -> Grammar(optional),
-      Keyword.Default -> Grammar(optional),
-    )),
-    Keyword.LeafList -> (ValidateArgument.identity, Map(
+      Keyword.Default -> Grammar(optional)
+    ),
+    Keyword.LeafList -> Map(
       Keyword.Type -> Grammar(required),
       Keyword.Container -> Grammar(many0()),
       Keyword.List -> Grammar(many0()),
@@ -125,86 +108,65 @@ object Grammar {
       Keyword.Mandatory -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
       Keyword.IfFeature -> Grammar(optional),
-      Keyword.Default -> Grammar(optional),
-    )),
-    Keyword.Type -> (ValidateArgument.identity, Map(
+      Keyword.Default -> Grammar(optional)
+    ),
+    Keyword.Type -> Map(
       Keyword.Length -> Grammar(optional),
       Keyword.Pattern -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
       Keyword.Path -> Grammar(optional),
       Keyword.Range -> Grammar(optional),
       Keyword.Enum -> Grammar(optional),
-      Keyword.Base -> Grammar(optional),
-    )),
-    Keyword.Key -> (ValidateArgument.identity, Map()),
-    Keyword.TypeDef -> (ValidateArgument.identity, Map(
+      Keyword.Base -> Grammar(optional)
+    ),
+    Keyword.Key -> Map(),
+    Keyword.TypeDef -> Map(
       Keyword.Type -> Grammar(required),
       Keyword.Description -> Grammar(optional),
       Keyword.Reference -> Grammar(optional),
       Keyword.Units -> Grammar(optional),
       Keyword.Default -> Grammar(optional),
-      Keyword.Status -> Grammar(optional),
-    )),
-    Keyword.Namespace -> (ValidateArgument.identity, Map()),
-    Keyword.Prefix -> (ValidateArgument.identity, Map()),
-    Keyword.Import -> (ValidateArgument.identity, Map(
+      Keyword.Status -> Grammar(optional)
+    ),
+    Keyword.Namespace -> Map(),
+    Keyword.Prefix -> Map(),
+    Keyword.Import -> Map(
       Keyword.Prefix -> Grammar(required)
-    )),
-    Keyword.Organization -> (ValidateArgument.identity, Map()),
-    Keyword.Contact -> (ValidateArgument.identity, Map()),
-    Keyword.Description -> (ValidateArgument.identity, Map()),
-    // Todo validate revision arg correctly)
-    Keyword.Revision -> (ValidateArgument.identity, Map()),
-    Keyword.Reference -> (ValidateArgument.identity, Map()),
-    Keyword.Length -> (ValidateArgument.identity, Map()),
-    Keyword.Pattern -> (ValidateArgument.identity, Map()),
-    Keyword.Units -> (ValidateArgument.identity, Map()),
-    Keyword.Default -> (ValidateArgument.identity, Map()),
-    //Todo: validate yang version arg
-    Keyword.YangVersion -> (ValidateArgument.identity, Map()),
-    Keyword.Identity -> (ValidateArgument.identity, Map()),
-    Keyword.Feature -> (ValidateArgument.identity, Map(
+    ),
+    Keyword.Organization -> Map(),
+    Keyword.Contact -> Map(),
+    Keyword.Description -> Map(),
+    Keyword.Revision -> Map(),
+    Keyword.Reference -> Map(),
+    Keyword.Length -> Map(),
+    Keyword.Pattern -> Map(),
+    Keyword.Units -> Map(),
+    Keyword.Default -> Map(),
+    Keyword.YangVersion -> Map(),
+    Keyword.Identity -> Map(),
+    Keyword.Feature -> Map(
       Keyword.Description -> Grammar(optional),
-      Keyword.Reference -> Grammar(optional),
-    )),
-    Keyword.Status -> (ValidateArgument.identity, Map()),
-    Keyword.Path -> (ValidateArgument.identity, Map()),
-    Keyword.Config -> (ValidateArgument.identity, Map()),
-    Keyword.IfFeature -> (ValidateArgument.identity, Map()),
-    Keyword.Mandatory -> (ValidateArgument.identity, Map()),
+      Keyword.Reference -> Grammar(optional)
+    ),
+    Keyword.Status -> Map(),
+    Keyword.Path -> Map(),
+    Keyword.Config -> Map(),
+    Keyword.IfFeature -> Map(),
+    Keyword.Mandatory -> Map()
   )
 
-  def getGrammarDef(kw: Keyword, version: Version): (ValidateArgument, Rules) = {
-    rfc6020(kw)
+  def getGrammarDef(kw: Keyword, version: Version): Option[Rules] = {
+    rfc6020.get(kw)
   }
 
-  def validate(
-      stmt: Statement,
-      version: Version = Version.Rfc6020
-  ): Either[String, ValidStatements] = {
 
-    val (v, rules) = getGrammarDef(Keyword.fromLiteral(stmt.keyword).get, version)
-
-    for {
-      _ <- v(stmt.arg)
-      validStatements <- stmt.substatements
-        .foldM[Either[String, _], (List[Tuple2[Keyword, Statement]], List[Statement], Int)](
-          (List.empty, List.empty, 0)
-        ) { case ((m, unknowns, section), stmt1) =>
-          stmt1 match
-            // Unknown statemnet
-            case Statement(Some(prefix), _, _, _) =>
-              Right((m, stmt1 :: unknowns, section))
-            case Statement(None, keyword, _, _) =>
-              Keyword
-                .fromLiteral(keyword).toRight(s"$keyword is not a valid keyword.")
-                .flatMap(kw => rules.lift(kw).map((_, kw)).toRight(s"${kw.literal} is not a valid substatement of ${stmt.keyword}"))
-                .map { (g, kw) =>
-                  ((kw, stmt1) :: m, unknowns, g.section)
-                }
-        }
-        .map(r => (r._1, r._2))
-    } yield (ValidStatements(validStatements._1, validStatements._2))
-    // Todo: Validate cardinality
+  def validateRootStatement(root: Statement): Either[Error, Valid] = {
+    val kwF = Keyword
+      .fromLiteral(root.keyword)
+      .filter(Seq(Keyword.Module).contains(_))
+      .toRight("root stmt must be either module or submodule.")
+    ???
   }
+
+  def validate(stmt: Statement, version: Version = Version.Rfc6020): Either[Error, Valid] = ???
 }
